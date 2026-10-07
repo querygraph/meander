@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Alexy Khrabrov" />
+  <meta name="dcterms.date" content="2026-10-07" />
+  <title>5. A verified transfer matrix</title>
+  <style>
+    div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
+    span.navlink { flex: 1; }
+    span.navlink-label { display: inline-block; min-width: 4em; }
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<nav id="sitenav">
+<div class="sitenav">
+<span class="navlink">
+<span class="navlink-label">Up:</span> <a href="index.html" accesskey="u" rel="up">Counting Arnold's Meanders with Verified Algorithms</a>
+</span>
+<span class="navlink">
+<span class="navlink-label">Top:</span> <a href="index.html" accesskey="t" rel="top">Counting Arnold's Meanders with Verified Algorithms</a>
+</span>
+</div>
+<div class="sitenav">
+<span class="navlink">
+<span class="navlink-label">Next:</span> <a href="chapter-007.html" accesskey="n" rel="next">6. Certified values and performance</a>
+</span>
+<span class="navlink">
+<span class="navlink-label">Previous:</span> <a href="chapter-005.html" accesskey="p" rel="previous">4. A verified search with parity pruning</a>
+</span>
+</div>
+</nav>
+<h1 class="unnumbered" id="sec:tm">5. A verified transfer matrix</h1>
+<h2 class="unnumbered" id="the-machine">5.1. The machine</h2>
+<p>Scan the points of the road from west to east: the bridges, then
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>E</mi><annotation encoding="application/x-tex">E</annotation></semantics></math>
+(one arc, on side
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mrow><mspace width="0.222em"></mspace><mrow><mi mathvariant="normal">mod</mi><mo>&#8289;</mo></mrow><mspace width="0.222em"></mspace><mn>2</mn></mrow></mrow><annotation encoding="application/x-tex">n \bmod 2</annotation></semantics></math>),
+then
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>S</mi><annotation encoding="application/x-tex">S</annotation></semantics></math>
+(one arc, below). Each point <em>opens</em> or <em>closes</em> its arc
+on each of its sides. Arcs on one side never cross, so the arcs still
+open at a cut form a <em>stack</em> on each side, and a closing point
+always closes the top of its stack.</p>
+<p>To the west of the cut the river is broken into pieces. Each piece
+joins two open arcs, or an open arc and the east end. The state records,
+for every open arc in stack order, a reference to where its piece
+leads:</p>
+<pre><code>inductive Ref where
+  | E                         -- the east end
+  | s (σ : Bool) (i : Nat)    -- position i in the stack of side σ
+
+structure St where
+  up : List Ref
+  dn : List Ref</code></pre>
+<p>There are four transitions at a bridge. Opening both sides creates a
+new piece whose two ends are the two new arcs. Opening one side and
+closing the other continues the closed arc’s piece along the new arc.
+Closing both sides joins two pieces, unless the two arcs being closed
+are the two ends of the same piece; that would close a loop, so the
+machine rejects it. At
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>E</mi><annotation encoding="application/x-tex">E</annotation></semantics></math>
+the top arc on its side is closed and its piece now ends at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>E</mi><annotation encoding="application/x-tex">E</annotation></semantics></math>,
+or a new arc is opened towards
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>S</mi><annotation encoding="application/x-tex">S</annotation></semantics></math>.
+A sequence is accepted when, after
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>E</mi><annotation encoding="application/x-tex">E</annotation></semantics></math>,
+exactly one arc is open, below the road, leading to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>E</mi><annotation encoding="application/x-tex">E</annotation></semantics></math>,
+so that
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>S</mi><annotation encoding="application/x-tex">S</annotation></semantics></math>
+can close it.</p>
+<h2 class="unnumbered" id="counting-with-merging-and-pruning">5.2.
+Counting with merging and pruning</h2>
+<p>The machine is run on all action sequences at once, layer by layer.
+Each layer is a list of states with multiplicities, and equal states are
+merged by sorting and adding adjacent counts. Any merge procedure is
+admissible if it preserves weighted sums
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mo>∑</mo><mrow><mo stretchy="false" form="prefix">(</mo><mi>s</mi><mo>,</mo><mi>c</mi><mo stretchy="false" form="postfix">)</mo></mrow></msub><mi>c</mi><mo>⋅</mo><mi>g</mi><mo stretchy="false" form="prefix">(</mo><mi>s</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\sum_{(s,c)} c\cdot g(s)</annotation></semantics></math>
+for every weight function
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>g</mi><annotation encoding="application/x-tex">g</annotation></semantics></math>;
+the counting theorem <code>tmCountWith_eq_countP</code> is proved for an
+arbitrary such procedure. We instantiate it twice: with a sort-based
+merge for compiled execution, and with a structurally recursive
+insertion merge that the Lean kernel can evaluate.</p>
+<p>Each layer also drops states that cannot be finished. Every remaining
+point closes at most one arc on each of its sides, and the accepting
+state has no open arc above the road and one below, so a state with more
+open arcs than the remaining points can close has no accepted
+continuation. In a prototype this <em>viability</em> test reduces the
+total number of states over all layers at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>17</mn></mrow><annotation encoding="application/x-tex">n=17</annotation></semantics></math>
+from
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>512</mn><mo>,</mo><mn>350</mn></mrow><annotation encoding="application/x-tex">512{,}350</annotation></semantics></math>
+to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>3</mn><mo>,</mo><mn>135</mn></mrow><annotation encoding="application/x-tex">3{,}135</annotation></semantics></math>.
+Its soundness is an induction showing that a single step lowers each
+stack by at most one, and only on the sides the point has.</p>
+<h2 class="unnumbered" id="correctness">5.3. Correctness</h2>
+<p>The counting theorem reduces correctness of the transfer matrix to
+the following statement.</p>
+<p><strong>Theorem 5.1.</strong> <span id="thm:tm"
+data-label="thm:tm"></span> The action sequences accepted by the machine
+are in bijection with open meanders. Consequently
+<code>tmCount m = openMeanderCount m</code> for every
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>m</mi><annotation encoding="application/x-tex">m</annotation></semantics></math>.</p>
+<p>The bijection is given explicitly. A meander
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>
+is <em>encoded</em> by letting point
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>y</mi><annotation encoding="application/x-tex">y</annotation></semantics></math>
+open its arc on side
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>σ</mi><annotation encoding="application/x-tex">\sigma</annotation></semantics></math>
+exactly when the other end of that arc lies east of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>y</mi><annotation encoding="application/x-tex">y</annotation></semantics></math>.
+An accepted sequence is <em>decoded</em> by running a decorated machine,
+described next, and reading off the river it has built. We prove that
+decoding an accepted sequence yields a meander whose encoding is the
+sequence, and that encoding a meander yields an accepted sequence that
+decodes back to the meander.</p>
+<h3 class="unnumbered" id="decoding.">Decoding.</h3>
+<p>The decorated machine stores, for every open arc, the point where it
+opened and its actual piece of river: the list of points from its
+origin, through scanned points, to the origin of its partner or to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>E</mi><annotation encoding="application/x-tex">E</annotation></semantics></math>.
+It also records the closed arcs. Forgetting the decorations gives back
+the transfer matrix exactly (lemma <code>step_abs</code>), so decorated
+runs and plain runs accept the same sequences. The heart of the proof is
+an invariant with twenty conjuncts, preserved by each of the five kinds
+of step (open–open, open–close for either side, close–close, and the two
+moves at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>E</mi><annotation encoding="application/x-tex">E</annotation></semantics></math>).
+It states, among other things, that partners point to each other; that a
+piece is duplicate-free, begins at its arc’s origin, and is the reverse
+of its partner’s piece; that consecutive points of a piece are joined by
+recorded arcs; that pieces of different components are disjoint and
+together cover every scanned point; that recorded arcs on one side do
+not interleave and do not straddle the origin of an open arc on that
+side; that each point is an arc end at most once per side; and that the
+recorded arcs agree with the actions read. At acceptance only one piece
+remains. Prefixing the south end gives a duplicate-free list of all
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>m</mi><mo>+</mo><mn>2</mn></mrow><annotation encoding="application/x-tex">m+2</annotation></semantics></math>
+points in which consecutive points are joined by arcs. Because each
+point is an arc end at most once per side, the sides of consecutive arcs
+must alternate, and the non-interleaving of recorded arcs then yields
+the meander condition.</p>
+<h3 class="unnumbered" id="encoding.">Encoding.</h3>
+<p>Along the run of a meander’s own sequence we maintain a second,
+simpler invariant: every recorded arc is an arc of the meander, and the
+stack on each side consists exactly of the scanned points whose arc on
+that side crosses the cut, in increasing order. The non-crossing
+property implies that a closing point’s partner is the largest such
+point, hence the top of the stack. The only remaining danger is the loop
+check. Suppose a bridge closes both sides and the two arcs being closed
+are the ends of one piece. That piece is a duplicate-free chain of
+meander arcs from one path-neighbour of the bridge to the other, and
+every step changes the position along the river by exactly one. A
+discrete intermediate-value argument shows the chain passes through the
+position of the bridge itself, which is impossible because the bridge
+has not been scanned yet. Finally, after
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>E</mi><annotation encoding="application/x-tex">E</annotation></semantics></math>
+the stacks are forced: nothing is open above, and below only the first
+bridge on the path is open, joined to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>S</mi><annotation encoding="application/x-tex">S</annotation></semantics></math>.
+Its piece is the whole river, so decoding returns the original
+meander.</p>
+<h2 class="unnumbered" id="the-proof-in-numbers">5.4. The proof in
+numbers</h2>
+<p>The transfer-matrix development is about 3,650 lines of Lean. The
+project as a whole, including the specification, the structural theorems
+and the search, is about 4,960 lines and 171 theorems. All main theorems
+depend only on Lean’s standard axioms (<code>propext</code>,
+<code>Classical.choice</code> and <code>Quot.sound</code>).</p>
+</body>
+</html>

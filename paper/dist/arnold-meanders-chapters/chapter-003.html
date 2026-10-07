@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Alexy Khrabrov" />
+  <meta name="dcterms.date" content="2026-10-07" />
+  <title>2. The specification</title>
+  <style>
+    div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
+    span.navlink { flex: 1; }
+    span.navlink-label { display: inline-block; min-width: 4em; }
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<nav id="sitenav">
+<div class="sitenav">
+<span class="navlink">
+<span class="navlink-label">Up:</span> <a href="index.html" accesskey="u" rel="up">Counting Arnold's Meanders with Verified Algorithms</a>
+</span>
+<span class="navlink">
+<span class="navlink-label">Top:</span> <a href="index.html" accesskey="t" rel="top">Counting Arnold's Meanders with Verified Algorithms</a>
+</span>
+</div>
+<div class="sitenav">
+<span class="navlink">
+<span class="navlink-label">Next:</span> <a href="chapter-004.html" accesskey="n" rel="next">3. Structural results</a>
+</span>
+<span class="navlink">
+<span class="navlink-label">Previous:</span> <a href="chapter-002.html" accesskey="p" rel="previous">1. Introduction</a>
+</span>
+</div>
+</nav>
+<h1 class="unnumbered" id="sec:spec">2. The specification</h1>
+<h2 class="unnumbered" id="from-a-picture-to-a-permutation">2.1. From a
+picture to a permutation</h2>
+<p>Label the bridges
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0</mn><mo>,</mo><mn>1</mn><mo>,</mo><mi>…</mi><mo>,</mo><mi>n</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">0,1,\dots,n-1</annotation></semantics></math>
+from west to east. Following Arnold, the river enters from the south and
+leaves to the east. Between consecutive crossings it runs along an arc
+in one of the two half-planes, alternately: the first arc, from the
+south, lies below the road, the next above, and so on. A river is
+therefore determined up to deformation by its <em>crossing order</em>,
+the permutation
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>
+with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo stretchy="false" form="prefix">(</mo><mi>i</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\tau(i)</annotation></semantics></math>
+the bridge crossed
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>i</mi><annotation encoding="application/x-tex">i</annotation></semantics></math>-th.</p>
+<p>Not every permutation is realized. To state the condition, compactify
+each half-plane to a disk whose boundary consists of the road and one
+point at infinity, and record the two ends of the river as two boundary
+points east of every bridge: the east end
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>E</mi><mo>=</mo><mi>n</mi></mrow><annotation encoding="application/x-tex">E = n</annotation></semantics></math>
+and the south end
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>S</mi><mo>=</mo><mi>n</mi><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">S = n+1</annotation></semantics></math>.
+(Going around the lower disk counterclockwise, one meets the bridges,
+then east, then south.) The river’s path is the sequence of boundary
+points
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>P</mi><mn>0</mn></msub><mo>=</mo><mi>S</mi><mo>,</mo><mspace width="1.0em"></mspace><msub><mi>P</mi><mn>1</mn></msub><mo>=</mo><mi>τ</mi><mo stretchy="false" form="prefix">(</mo><mn>0</mn><mo stretchy="false" form="postfix">)</mo><mo>,</mo><mspace width="0.222em"></mspace><mi>…</mi><mo>,</mo><mspace width="0.222em"></mspace><msub><mi>P</mi><mi>n</mi></msub><mo>=</mo><mi>τ</mi><mo stretchy="false" form="prefix">(</mo><mi>n</mi><mo>−</mo><mn>1</mn><mo stretchy="false" form="postfix">)</mo><mo>,</mo><mspace width="1.0em"></mspace><msub><mi>P</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><mi>E</mi><mo>,</mo></mrow><annotation encoding="application/x-tex">P_0 = S,\quad P_1 = \tau(0),\ \dots,\ P_n = \tau(n-1),\quad P_{n+1} = E,</annotation></semantics></math>
+and arc
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math>
+joins
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>P</mi><mi>k</mi></msub><annotation encoding="application/x-tex">P_k</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>P</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><annotation encoding="application/x-tex">P_{k+1}</annotation></semantics></math>
+in the lower half-plane if
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math>
+is even and the upper one if
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math>
+is odd. By the Jordan curve theorem the river is simple exactly when no
+two arcs on the same side cross, and two chords of a disk cross exactly
+when their endpoints alternate around the boundary. Because all
+endpoints are now points of a line, alternation is an elementary
+condition.</p>
+<p><strong>Definition 2.1.</strong> Chords
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">{</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo stretchy="false" form="postfix">}</mo></mrow><annotation encoding="application/x-tex">\{a,b\}</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">{</mo><mi>c</mi><mo>,</mo><mi>d</mi><mo stretchy="false" form="postfix">}</mo></mrow><annotation encoding="application/x-tex">\{c,d\}</annotation></semantics></math>
+<em>interleave</em> if exactly one of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>c</mi><mo>,</mo><mi>d</mi></mrow><annotation encoding="application/x-tex">c,d</annotation></semantics></math>
+lies strictly between
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mrow><mi mathvariant="normal">min</mi><mo>&#8289;</mo></mrow><mo stretchy="false" form="prefix">(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\min(a,b)</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mrow><mi mathvariant="normal">max</mi><mo>&#8289;</mo></mrow><mo stretchy="false" form="prefix">(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\max(a,b)</annotation></semantics></math>.
+A point sequence
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>P</mi><annotation encoding="application/x-tex">P</annotation></semantics></math>
+has <em>no crossing among its first
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>L</mi><annotation encoding="application/x-tex">L</annotation></semantics></math>
+arcs</em> if for all
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>j</mi><mo>&lt;</mo><mi>k</mi><mo>&lt;</mo><mi>L</mi></mrow><annotation encoding="application/x-tex">j&lt;k&lt;L</annotation></semantics></math>
+with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>j</mi><mo>≡</mo><mi>k</mi><mrow><mspace width="0.222em"></mspace><mo stretchy="false" form="prefix">(</mo><mrow><mi mathvariant="normal">mod</mi><mo>&#8289;</mo></mrow><mspace width="0.222em"></mspace><mn>2</mn><mo stretchy="false" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">j \equiv k \pmod 2</annotation></semantics></math>,
+the arcs
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">{</mo><msub><mi>P</mi><mi>j</mi></msub><mo>,</mo><msub><mi>P</mi><mrow><mi>j</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false" form="postfix">}</mo></mrow><annotation encoding="application/x-tex">\{P_j,P_{j+1}\}</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">{</mo><msub><mi>P</mi><mi>k</mi></msub><mo>,</mo><msub><mi>P</mi><mrow><mi>k</mi><mo>+</mo><mn>1</mn></mrow></msub><mo stretchy="false" form="postfix">}</mo></mrow><annotation encoding="application/x-tex">\{P_k,P_{k+1}\}</annotation></semantics></math>
+do not interleave. A permutation
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>τ</mi><annotation encoding="application/x-tex">\tau</annotation></semantics></math>
+of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">{</mo><mn>0</mn><mo>,</mo><mi>…</mi><mo>,</mo><mi>n</mi><mo>−</mo><mn>1</mn><mo stretchy="false" form="postfix">}</mo></mrow><annotation encoding="application/x-tex">\{0,\dots,n-1\}</annotation></semantics></math>
+is an <em>open meander</em> if its path has no crossing among its
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">n+1</annotation></semantics></math>
+arcs. We write
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mi>n</mi></msub><annotation encoding="application/x-tex">\mathrm{M}_n</annotation></semantics></math>
+for the number of open meanders.</p>
+<p>Figure 1 gives the specification in Lean. Figure 2 shows the three
+open meanders with four crossings, and Figure 3, on a page of its own,
+shows all eight with five.</p>
+<figure id="fig:spec" data-latex-placement="t">
+<pre><code>def Interleave (a b c d : Nat) : Prop :=
+  ¬ ((min a b &lt; c ∧ c &lt; max a b) ↔ (min a b &lt; d ∧ d &lt; max a b))
+
+def NoCross (P : Nat → Nat) (L : Nat) : Prop :=
+  ∀ k &lt; L, ∀ j &lt; k, j % 2 = k % 2 →
+    ¬ Interleave (P j) (P (j + 1)) (P k) (P (k + 1))
+
+def IsMeander {n : ℕ} (σ : Equiv.Perm (Fin n)) : Prop :=
+  NoCross (pathPt σ) (n + 1)
+
+def openMeanderCount (n : ℕ) : ℕ :=
+  Fintype.card {σ : Equiv.Perm (Fin n) // IsMeander σ}</code></pre>
+<figcaption>
+Figure 1. The specification in Lean 4. <code>pathPt</code> <span
+class="math inline"><em>σ</em></span> is the point sequence <span
+class="math inline"><em>P</em></span> of the river with crossing
+order <span class="math inline"><em>σ</em></span>.
+</figcaption>
+</figure>
+<figure id="fig:n4" data-latex-placement="t">
+<p>
+<img src="assets/e4b27b34c672-n4-1.svg" alt="image" />
+<img src="assets/6063b41aa148-n4-2.svg" alt="image" />
+<img src="assets/865cbfe527d2-n4-3.svg" alt="image" />
+</p>
+<figcaption>
+Figure 2. The three open meanders with <span
+class="math inline"><em>n</em> = 4</span> crossings. The river enters
+from the south and leaves to the east; bridges are numbered <span
+class="math inline">0</span> to <span class="math inline">3</span> from
+west to east. Their crossing orders are <span
+class="math inline">0123</span>, <span class="math inline">0321</span>
+and <span class="math inline">2103</span>.
+</figcaption>
+</figure>
+<h2 class="unnumbered" id="closed-meanders">2.2. Closed meanders</h2>
+<p>A closed meander of order
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>
+is a simple closed curve crossing the road
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mi>n</mi></mrow><annotation encoding="application/x-tex">2n</annotation></semantics></math>
+times. To count each curve once we fix where it starts and in which
+direction it runs: it starts at the westmost bridge and leaves it into
+the upper half-plane. It is then a permutation
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>σ</mi><annotation encoding="application/x-tex">\sigma</annotation></semantics></math>
+of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">{</mo><mn>0</mn><mo>,</mo><mi>…</mi><mo>,</mo><mn>2</mn><mi>n</mi><mo>−</mo><mn>1</mn><mo stretchy="false" form="postfix">}</mo></mrow><annotation encoding="application/x-tex">\{0,\dots,2n-1\}</annotation></semantics></math>
+with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>σ</mi><mo stretchy="false" form="prefix">(</mo><mn>0</mn><mo stretchy="false" form="postfix">)</mo><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">\sigma(0)=0</annotation></semantics></math>
+whose cyclic path has no crossing among its
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mi>n</mi></mrow><annotation encoding="application/x-tex">2n</annotation></semantics></math>
+arcs. We write
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mi>n</mi></msub><annotation encoding="application/x-tex">\overline{\mathrm{M}}_n</annotation></semantics></math>
+for their number.</p>
+<figure id="fig:n5" data-latex-placement="p">
+<table>
+<tbody>
+<tr>
+<td style="text-align: center;">
+<img src="assets/39ed5be87887-n5-1.svg" alt="image" />
+</td>
+<td style="text-align: center;">
+<img src="assets/fdbfdae3feb8-n5-2.svg" alt="image" />
+</td>
+</tr>
+<tr>
+<td style="text-align: center;">
+<span class="math inline">01234</span>
+</td>
+<td style="text-align: center;">
+<span class="math inline">01432</span>
+</td>
+</tr>
+<tr>
+<td style="text-align: center;">
+<img src="assets/e2b9730fa0e1-n5-3.svg" alt="image" />
+</td>
+<td style="text-align: center;">
+<img src="assets/2fbe6d5ef6ba-n5-4.svg" alt="image" />
+</td>
+</tr>
+<tr>
+<td style="text-align: center;">
+<span class="math inline">03214</span>
+</td>
+<td style="text-align: center;">
+<span class="math inline">21034</span>
+</td>
+</tr>
+<tr>
+<td style="text-align: center;">
+<img src="assets/823a1d003520-n5-5.svg" alt="image" />
+</td>
+<td style="text-align: center;">
+<img src="assets/fda44bc5dabf-n5-6.svg" alt="image" />
+</td>
+</tr>
+<tr>
+<td style="text-align: center;">
+<span class="math inline">23410</span>
+</td>
+<td style="text-align: center;">
+<span class="math inline">41230</span>
+</td>
+</tr>
+<tr>
+<td style="text-align: center;">
+<img src="assets/a95245f8de0b-n5-7.svg" alt="image" />
+</td>
+<td style="text-align: center;">
+<img src="assets/dd88855229b3-n5-8.svg" alt="image" />
+</td>
+</tr>
+<tr>
+<td style="text-align: center;">
+<span class="math inline">43012</span>
+</td>
+<td style="text-align: center;">
+<span class="math inline">43210</span>
+</td>
+</tr>
+</tbody>
+</table>
+<figcaption>
+Figure 3. All eight open meanders with <span
+class="math inline"><em>n</em> = 5</span> crossings, each labelled with
+its crossing order (the bridges crossed, in river order, numbered from
+west to east). The river enters from the south; since <span
+class="math inline"><em>n</em></span> is odd, its last arc lies above
+the road and it leaves to the east above every other upper arc.
+</figcaption>
+</figure>
+</body>
+</html>

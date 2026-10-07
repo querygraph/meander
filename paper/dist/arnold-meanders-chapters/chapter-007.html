@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Alexy Khrabrov" />
+  <meta name="dcterms.date" content="2026-10-07" />
+  <title>6. Certified values and performance</title>
+  <style>
+    div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
+    span.navlink { flex: 1; }
+    span.navlink-label { display: inline-block; min-width: 4em; }
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<nav id="sitenav">
+<div class="sitenav">
+<span class="navlink">
+<span class="navlink-label">Up:</span> <a href="index.html" accesskey="u" rel="up">Counting Arnold's Meanders with Verified Algorithms</a>
+</span>
+<span class="navlink">
+<span class="navlink-label">Top:</span> <a href="index.html" accesskey="t" rel="top">Counting Arnold's Meanders with Verified Algorithms</a>
+</span>
+</div>
+<div class="sitenav">
+<span class="navlink">
+<span class="navlink-label">Next:</span> <a href="chapter-008.html" accesskey="n" rel="next">7. Discussion</a>
+</span>
+<span class="navlink">
+<span class="navlink-label">Previous:</span> <a href="chapter-006.html" accesskey="p" rel="previous">5. A verified transfer matrix</a>
+</span>
+</div>
+</nav>
+<h1 class="unnumbered" id="sec:values">6. Certified values and
+performance</h1>
+<p>Table 2 compares the algorithms. Times are wall-clock on an
+Apple-silicon laptop for computing all values up to the given
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>.
+The specification itself is evaluable only for very small
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>.</p>
+<table id="tab:perf">
+<caption>Table 2. Running times.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Algorithm</th>
+<th style="text-align: right;">largest
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math></th>
+<th style="text-align: right;">time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">search, crossing test only (compiled)</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">72 s</td>
+</tr>
+<tr>
+<td style="text-align: left;">search with parity pruning (compiled)</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">5 s</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: right;">17</td>
+<td style="text-align: right;">62 s</td>
+</tr>
+<tr>
+<td style="text-align: left;">transfer matrix (compiled)</td>
+<td style="text-align: right;">24</td>
+<td style="text-align: right;">1.3 s</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: right;">28</td>
+<td style="text-align: right;">11 s</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: right;">30</td>
+<td style="text-align: right;">32 s</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">93 s</td>
+</tr>
+<tr>
+<td style="text-align: left;">search, kernel evaluation</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">30 s for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>9</mn></mrow><annotation encoding="application/x-tex">n=9</annotation></semantics></math>
+alone</td>
+</tr>
+<tr>
+<td style="text-align: left;">transfer matrix, kernel evaluation</td>
+<td style="text-align: right;">13</td>
+<td style="text-align: right;">68 s for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>13</mn></mrow><annotation encoding="application/x-tex">n=13</annotation></semantics></math>
+alone</td>
+</tr>
+</tbody>
+</table>
+<p>The repository certifies values at two levels of trust. The statement
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">(</mo><msub><mi mathvariant="normal">M</mi><mn>0</mn></msub><mo>,</mo><mi>…</mi><mo>,</mo><msub><mi mathvariant="normal">M</mi><mn>13</mn></msub><mo stretchy="false" form="postfix">)</mo><mo>=</mo><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>,</mo><mn>1</mn><mo>,</mo><mn>1</mn><mo>,</mo><mn>2</mn><mo>,</mo><mn>3</mn><mo>,</mo><mn>8</mn><mo>,</mo><mn>14</mn><mo>,</mo><mn>42</mn><mo>,</mo><mn>81</mn><mo>,</mo><mn>262</mn><mo>,</mo><mn>538</mn><mo>,</mo><mn>1828</mn><mo>,</mo><mn>3926</mn><mo>,</mo><mn>13820</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">(\mathrm{M}_0,\dots,\mathrm{M}_{13}) = (1,1,1,2,3,8,14,42,81,262,538,1828,3926,13820)</annotation></semantics></math>
+is proved by evaluation in the Lean kernel, through Theorem 5.1 applied
+to the insertion-merge variant, and the corresponding closed values
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">(</mo><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mn>1</mn></msub><mo>,</mo><mi>…</mi><mo>,</mo><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mn>7</mn></msub><mo stretchy="false" form="postfix">)</mo><mo>=</mo><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>,</mo><mn>2</mn><mo>,</mo><mn>8</mn><mo>,</mo><mn>42</mn><mo>,</mo><mn>262</mn><mo>,</mo><mn>1828</mn><mo>,</mo><mn>13820</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">(\overline{\mathrm{M}}_1,\dots,\overline{\mathrm{M}}_7) = (1,2,8,42,262,1828,13820)</annotation></semantics></math>
+follow by Theorem 3.2. Values up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>24</mn></mrow><annotation encoding="application/x-tex">n = 24</annotation></semantics></math>
+are proved with <code>native_decide</code>, which additionally trusts
+the Lean compiler. The compiled transfer matrix produces
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi mathvariant="normal">M</mi><mn>30</mn></msub><mo>=</mo><mn>1</mn><mo>,</mo><mn>503</mn><mo>,</mo><mn>962</mn><mo>,</mo><mn>954</mn><mo>,</mo><mn>930</mn><mo>,</mo><mspace width="2.0em"></mspace><msub><mi mathvariant="normal">M</mi><mn>32</mn></msub><mo>=</mo><mn>15</mn><mo>,</mo><mn>012</mn><mo>,</mo><mn>865</mn><mo>,</mo><mn>733</mn><mo>,</mo><mn>351</mn><mo>,</mo></mrow><annotation encoding="application/x-tex">\mathrm{M}_{30} = 1{,}503{,}962{,}954{,}930, \qquad \mathrm{M}_{32} = 15{,}012{,}865{,}733{,}351,</annotation></semantics></math>
+and all values for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>32</mn></mrow><annotation encoding="application/x-tex">n \le 32</annotation></semantics></math>
+agree with the OEIS b-file. The executable is the same function that the
+correctness theorem is about, so these values carry the guarantee of
+Theorem 5.1 up to the correctness of compilation.</p>
+<figure id="fig:n9" data-latex-placement="t">
+<img src="assets/a7c62f047f11-n9-138.svg" />
+<figcaption>
+Figure 4. One of the <span class="math inline">262</span> open meanders
+with <span class="math inline"><em>n</em> = 9</span> crossings; its
+crossing order is <span class="math inline">456783210</span>.
+</figcaption>
+</figure>
+</body>
+</html>

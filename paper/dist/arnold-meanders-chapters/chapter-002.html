@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Alexy Khrabrov" />
+  <meta name="dcterms.date" content="2026-10-07" />
+  <title>1. Introduction</title>
+  <style>
+    div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
+    span.navlink { flex: 1; }
+    span.navlink-label { display: inline-block; min-width: 4em; }
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<nav id="sitenav">
+<div class="sitenav">
+<span class="navlink">
+<span class="navlink-label">Up:</span> <a href="index.html" accesskey="u" rel="up">Counting Arnold's Meanders with Verified Algorithms</a>
+</span>
+<span class="navlink">
+<span class="navlink-label">Top:</span> <a href="index.html" accesskey="t" rel="top">Counting Arnold's Meanders with Verified Algorithms</a>
+</span>
+</div>
+<div class="sitenav">
+<span class="navlink">
+<span class="navlink-label">Next:</span> <a href="chapter-003.html" accesskey="n" rel="next">2. The specification</a>
+</span>
+<span class="navlink">
+<span class="navlink-label">Previous:</span> <a href="chapter-001.html" accesskey="p" rel="previous">Abstract</a>
+</span>
+</div>
+</nav>
+<h1 class="unnumbered" id="introduction">1. Introduction</h1>
+<p>A <em>meander</em> is a non-self-intersecting curve in the plane that
+crosses a fixed straight line a prescribed number of times. In a short
+note on the topology of real algebraic curves, Arnold [2] posed the
+enumeration question in its most vivid form: in how many ways can a
+river cross a straight road
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>
+times? Two rivers are considered the same if one can be deformed into
+the other without changing the order of the crossings along the road and
+along the river. The resulting numbers,
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>1</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>1</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>2</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>3</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>8</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>14</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>42</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>81</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>262</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>538</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>1828</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>3926</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>13820</mn><mo>,</mo><mspace width="0.222em"></mspace><mi>…</mi></mrow><annotation encoding="application/x-tex">1,\ 1,\ 1,\ 2,\ 3,\ 8,\ 14,\ 42,\ 81,\ 262,\ 538,\ 1828,\ 3926,\ 13820,\ \dots</annotation></semantics></math>
+form sequence A005316 of the OEIS [9]. The closely related count of
+closed curves crossing the line
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mi>n</mi></mrow><annotation encoding="application/x-tex">2n</annotation></semantics></math>
+times is A005315 [10]. Meanders appeared earlier in work on folding a
+strip of stamps [11], were studied systematically by Lando and
+Zvonkin [6], and became a test bed for exact enumeration and statistical
+physics [3, 4, 5].</p>
+<p>Despite this attention there is no closed formula. Di Francesco,
+Golinelli and Guitter conjectured from a conformal field theory argument
+that the number of closed meanders of order
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>
+grows like
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>C</mi><mspace width="0.167em"></mspace><msup><mi>R</mi><mrow><mn>2</mn><mi>n</mi></mrow></msup><msup><mi>n</mi><mrow><mi>−</mi><mi>α</mi></mrow></msup></mrow><annotation encoding="application/x-tex">C\,R^{2n} n^{-\alpha}</annotation></semantics></math>
+with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>R</mi><mn>2</mn></msup><mo>≈</mo><mn>12.26</mn></mrow><annotation encoding="application/x-tex">R^2 \approx 12.26</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mo>=</mo><mo stretchy="false" form="prefix">(</mo><mn>29</mn><mo>+</mo><msqrt><mn>145</mn></msqrt><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mn>12</mn></mrow><annotation encoding="application/x-tex">\alpha = (29+\sqrt{145})/12</annotation></semantics></math> [4].
+Rigorous bounds on the growth rate are far apart: Albert and Paterson
+proved that the exponential growth constant
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>R</mi><mn>2</mn></msup><annotation encoding="application/x-tex">R^2</annotation></semantics></math>
+lies between about
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>11.38</mn><annotation encoding="application/x-tex">11.38</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>12.90</mn><annotation encoding="application/x-tex">12.90</annotation></semantics></math> [1].
+Every known value of the sequence comes from a computer program, and the
+best of these are intricate transfer-matrix codes [5].</p>
+<p>This paper asks a narrower question: can we compute meander numbers
+with programs whose correctness is machine-checked against the plain
+definition? We answer it in the Lean 4 proof assistant [7] with the
+mathlib library [8]. Our contributions are:</p>
+<ol type="1">
+<li><p>A formal specification of open meanders as permutations of the
+bridges satisfying a non-crossing condition, and of closed meanders
+(Section 2).</p></li>
+<li><p>Structural theorems: open meanders exist for every
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>;
+there are at most
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mi>!</mi></mrow><annotation encoding="application/x-tex">n!</annotation></semantics></math>;
+closed meanders of order
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>
+correspond bijectively to open meanders with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mi>n</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">2n-1</annotation></semantics></math>
+crossings; and there are at most
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msubsup><mi>C</mi><mi>n</mi><mn>2</mn></msubsup><annotation encoding="application/x-tex">C_n^2</annotation></semantics></math>
+closed meanders (Section 3).</p></li>
+<li><p>A depth-first search with a pruning rule derived from a parity
+argument, proved equal to the specification (Section 4).</p></li>
+<li><p>A transfer matrix with state merging and a capacity-based pruning
+rule, proved equal to the specification by a bijection between accepted
+action sequences and meanders (Section 5).</p></li>
+<li><p>Certified values: kernel-checked for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>13</mn></mrow><annotation encoding="application/x-tex">n \le 13</annotation></semantics></math>,
+and computed by the verified transfer matrix up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>32</mn></mrow><annotation encoding="application/x-tex">n = 32</annotation></semantics></math>,
+matching the OEIS (Section 6).</p></li>
+</ol>
+<p>We do not claim new values of the sequence; larger values are
+known [5]. What is new is that the values we report come from programs
+proved correct for all
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>,
+and that the proofs expose the combinatorial facts that make the fast
+algorithms work.</p>
+</body>
+</html>

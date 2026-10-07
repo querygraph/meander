@@ -14,6 +14,7 @@
   },
   "dist": "paper/dist",
   "buildDir": "paper/build/firstpair",
+  "cleanDist": true,
   "edition": "full",
   "primaryFormat": "latex",
   "mobi": false,
@@ -53,5 +54,5 @@
       }
     ]
   },
-  "tutorial": "viz/arnold-meanders.html"
+  "tutorial": "viz/arnold-meanders-visualization.html"
 }

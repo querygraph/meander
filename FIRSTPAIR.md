@@ -12,7 +12,7 @@ publisher (`~/src/firstpair`). Keep the key-value header simple and unbulleted.
 This repository owns the paper *Counting Arnold's Meanders with Verified
 Algorithms* (`paper/meanders.tex`), its figure generator (`paper/figures.mjs`),
 the LaTeX-to-Markdown bridge (`paper/firstpair/`), the visualization
-(`viz/index.html` and its self-contained copy `viz/arnold-meanders.html`), the
+(`viz/index.html` and its self-contained copy `viz/arnold-meanders-visualization.html`), the
 cover art (`cover/meanders.png`), `book.build.json`, and the built package under
 `paper/dist`. The Lean formalization it describes lives in `Arnold/`. FirstPair
 owns the unified builder, catalog, readers, Blob uploads and deployment.
@@ -27,7 +27,7 @@ reference numbers taken from the LaTeX build.
 Requires MacTeX (`pdflatex`), pandoc, node and python3.
 
 ```sh
-python3 viz/inline_fonts.py viz/index.html viz/arnold-meanders.html   # when viz/index.html changes
+python3 viz/inline_fonts.py viz/index.html viz/arnold-meanders-visualization.html   # when viz/index.html changes
 "$HOME/src/firstpair/publishing/scripts/build-library-book.sh" --repo-root "$(git rev-parse --show-toplevel)"
 ```
 

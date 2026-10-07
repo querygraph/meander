@@ -4,7 +4,7 @@
 The /learn route allows inline scripts and styles but no external stylesheets, so the
 Google Fonts are downloaded (Latin subset, woff2 or woff) and embedded as data: URIs.
 
-  python3 viz/inline_fonts.py viz/index.html viz/arnold-meanders.html
+  python3 viz/inline_fonts.py viz/index.html viz/arnold-meanders-visualization.html
 """
 import base64
 import re
