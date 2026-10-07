@@ -5,6 +5,11 @@
 No closed formula is known. This project states the problem precisely, proves facts about it,
 and computes the counts with algorithms that are **proved** to give exactly the right answer.
 
+- **Paper:** [*Counting Arnold's meanders with verified algorithms*](paper/meanders.pdf)
+  ([LaTeX source](paper/meanders.tex); builds with `tectonic paper/meanders.tex` or `pdflatex`).
+- **Visualization:** [`viz/index.html`](viz/index.html), an animation of the rivers for
+  n = 0 … 32; open it in a browser.
+
 | File | Contents |
 |---|---|
 | `Arnold/Basic.lean` | The specification: `openMeanderCount n` = number of permutations of `Fin n` that are meanders; closed meanders; `0 < openMeanderCount n ≤ n!` |

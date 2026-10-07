@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arnold's Meanders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one full-bleed night map; the road runs across the middle, the HUD sits at the four edges. */
+  :root {
+    color-scheme: dark;
+    --ink: #05090e;
+    --land: #0a121a;
+    --road: #cdbf9c;
+    --river: #5fe3d0;
+    --spark: #ffb84d;
+    --text: #c9d5dd;
+    --muted: #6d8593;
+    --display: "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --gutter: max(16px, 3vw);
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; background: var(--ink); color: var(--text);
+    font-family: var(--mono); -webkit-font-smoothing: antialiased;
+  }
+  .stage { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .hud { position: fixed; pointer-events: none; }
+  .hud a, .hud button { pointer-events: auto; }
+  .top {
+    top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); left: var(--gutter);
+    right: calc(var(--gutter) + 180px); max-width: 34rem;
+  }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted);
+    margin: 0 0 0.5rem;
+  }
+  h1 {
+    font-family: var(--display); font-style: italic; font-weight: 400;
+    font-size: clamp(22px, 3.2vw, 40px); line-height: 1.1; margin: 0; color: var(--text);
+    text-wrap: balance;
+  }
+  h1 em { font-style: normal; color: var(--river); }
+  .controls {
+    top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); right: var(--gutter);
+    display: flex; gap: 8px;
+  }
+  button {
+    font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text); background: rgba(10, 18, 26, 0.72); border: 1px solid rgba(201, 213, 221, 0.22);
+    border-radius: 999px; padding: 9px 14px; cursor: pointer; backdrop-filter: blur(6px);
+  }
+  button:hover { border-color: var(--river); color: var(--river); }
+  button:focus-visible { outline: 2px solid var(--spark); outline-offset: 2px; }
+  .bottom {
+    left: var(--gutter); right: var(--gutter);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--gutter));
+    display: grid; gap: 10px;
+  }
+  .readout { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
+  .nbig {
+    font-family: var(--display); font-weight: 500; font-size: clamp(44px, 8vw, 104px);
+    line-height: 0.9; color: var(--text); font-variant-numeric: lining-nums;
+    transition: transform 380ms cubic-bezier(.2,.7,.2,1);
+  }
+  .nbig i { font-style: italic; color: var(--river); }
+  .nbig.pulse { transform: scale(1.06); }
+  .counts { display: grid; gap: 4px; min-width: 0; }
+  .count {
+    font-family: var(--display); font-size: clamp(20px, 2.6vw, 32px); color: var(--text);
+    font-variant-numeric: tabular-nums lining-nums; overflow-wrap: anywhere;
+  }
+  .count b { font-weight: 500; color: var(--spark); }
+  .status { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  .status a { color: var(--river); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  .strip {
+    display: flex; gap: 14px; overflow-x: auto; scrollbar-width: none; padding-block: 6px 2px;
+    border-top: 1px solid rgba(201, 213, 221, 0.12); font-size: 11px; color: var(--muted);
+    font-variant-numeric: tabular-nums; white-space: nowrap; scroll-behavior: smooth;
+    mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+  }
+  .strip::-webkit-scrollbar { display: none; }
+  .strip span { display: inline-flex; gap: 6px; transition: color 300ms; }
+  .strip span small { opacity: 0.6; }
+  .strip span.on { color: var(--river); }
+  .strip span.done { color: var(--text); }
+  @media (max-width: 560px) {
+    .top { right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 44px); }
+    .readout { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+
+<div class="stage"><canvas id="c" role="img" aria-label="Animated rivers crossing a straight road. The number of crossings grows from 0 to 32, and the rivers shown are the meanders with that many crossings."></canvas></div>
+
+<div class="hud top">
+  <p class="eyebrow">V. I. Arnold, 1988</p>
+  <h1>In how many ways can a river cross a straight road <em>n</em> times?</h1>
+</div>
+
+<div class="hud controls">
+  <button id="play" type="button" aria-pressed="false">Pause</button>
+  <button id="replay" type="button">Replay</button>
+</div>
+
+<div class="hud bottom">
+  <div class="readout">
+    <div class="nbig" id="nbig"><i>n</i> = 0</div>
+    <div class="counts">
+      <div class="count" id="count"><b>1</b> river</div>
+      <div class="status" id="status">drawing 1 of 1</div>
+    </div>
+  </div>
+  <div class="strip" id="strip" aria-label="Number of rivers for each n (OEIS A005316)"></div>
+</div>
+
+<script>
+(() => {
+  // Exact counts for n = 0..32, from the transfer matrix proved equal to the specification in Lean 4.
+  const VALUES = [1, 1, 1, 2, 3, 8, 14, 42, 81, 262, 538, 1828, 3926, 13820, 30694, 110954, 252939, 933458, 2172830, 8152860, 19304190, 73424650, 176343390, 678390116, 1649008456, 6405031050, 15730575554, 61606881612, 152663683494, 602188541928, 1503962954930, 5969806669034, 15012865733351];
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const bg = document.createElement('canvas'), bgx = bg.getContext('2d');
+  const ghost = document.createElement('canvas'), gx = ghost.getContext('2d');
+  const $n = document.getElementById('nbig'), $count = document.getElementById('count');
+  const $status = document.getElementById('status'), $strip = document.getElementById('strip');
+  const $play = document.getElementById('play'), $replay = document.getElementById('replay');
+  const css = getComputedStyle(document.documentElement);
+  const C = {
+    river: css.getPropertyValue('--river').trim(), spark: css.getPropertyValue('--spark').trim(),
+    road: css.getPropertyValue('--road').trim(), land: css.getPropertyValue('--land').trim(),
+    ink: css.getPropertyValue('--ink').trim(),
+  };
+  const fmt = (x) => x.toLocaleString('en-US');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- meanders: exact enumeration (crossing check + parity pruning) ----------
+  // Bridges 0..n-1 west to east; E = n (east end), S = n+1 (south end). path[0] = S.
+  // Arc j joins path[j] and path[j+1]; even arcs below the road, odd arcs above.
+  function makeSearch(n) {
+    const path = new Int32Array(n + 2), used = new Uint8Array(n);
+    path[0] = n + 1;
+    const crosses = (t) => {
+      const a = path[t], b = path[t + 1], lo = a < b ? a : b, hi = a < b ? b : a;
+      for (let j = t - 2; j >= 0; j -= 2) {
+        const c = path[j], d = path[j + 1];
+        if ((c > lo && c < hi) !== (d > lo && d < hi)) return true;
+      }
+      return false;
+    };
+    // every drawn arc must enclose an even number of arc ends still to come on its side
+    const parityOK = (t) => {
+      const cur = path[t];
+      for (let j = 0; j < t; j++) {
+        const a = path[j], b = path[j + 1], lo = a < b ? a : b, hi = a < b ? b : a;
+        let k = 0;
+        for (let y = lo + 1; y < hi && y < n; y++) if (!used[y]) k++;
+        const s = j & 1;
+        if ((t & 1) === s && cur > lo && cur < hi) k++;
+        if ((n & 1) === s && n > lo && n < hi) k++;
+        if (k & 1) return false;
+      }
+      return true;
+    };
+    return { path, used, crosses, parityOK };
+  }
+  function* allMeanders(n) {
+    const { path, used, crosses, parityOK } = makeSearch(n);
+    function* rec(t) {
+      if (t === n) { path[n + 1] = n; if (!crosses(n)) yield Array.from(path.subarray(1, n + 1)); return; }
+      for (let x = 0; x < n; x++) {
+        if (used[x]) continue;
+        used[x] = 1; path[t + 1] = x;
+        if (!crosses(t) && parityOK(t + 1)) yield* rec(t + 1);
+        used[x] = 0;
+      }
+    }
+    yield* rec(0);
+  }
+  function randomMeander(n, budget = 4000) {
+    const { path, used, crosses, parityOK } = makeSearch(n);
+    let nodes = 0, found = null;
+    const order = new Int32Array(n);
+    const rec = (t) => {
+      if (found || ++nodes > budget) return;
+      if (t === n) { path[n + 1] = n; if (!crosses(n)) found = Array.from(path.subarray(1, n + 1)); return; }
+      const cand = [];
+      for (let x = 0; x < n; x++) if (!used[x]) cand.push(x);
+      for (let i = cand.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [cand[i], cand[j]] = [cand[j], cand[i]]; }
+      for (const x of cand) {
+        used[x] = 1; path[t + 1] = x;
+        if (!crosses(t) && parityOK(t + 1)) rec(t + 1);
+        used[x] = 0;
+        if (found || nodes > budget) return;
+      }
+    };
+    for (let tries = 0; tries < 6 && !found; tries++) { nodes = 0; rec(0); }
+    return found;
+  }
+
+  // ---------- layout ----------
+  let W = 0, H = 0, DPR = 1, roadY = 0;
+  const lay = { n: -1 };
+  function bridgeXs(n) {
+    const left = Math.max(28, W * 0.07), right = Math.max(56, W * 0.12);
+    const span = W - left - right, dx = span / Math.max(n, 1);
+    return Array.from({ length: n }, (_, i) => left + (i + 0.5) * dx);
+  }
+  // Geometry of a river: a list of drawing segments, from the south to the east.
+  function geometry(n, perm) {
+    const xs = bridgeXs(n);
+    const topRoom = roadY - Math.min(150, H * 0.24), botRoom = H - roadY - Math.min(190, H * 0.3);
+    const segs = [];
+    if (n === 0) {
+      const x = W * 0.5, c = Math.min(60, botRoom * 0.35), y1 = roadY + Math.min(botRoom * 0.55, 120);
+      segs.push({ t: 'line', x0: x, y0: H + 40, x1: x, y1: y1 });
+      segs.push({ t: 'corner', cx: x + c, cy: y1 - 0, r: c, a0: Math.PI, a1: Math.PI / 2, ccw: true });
+      segs.push({ t: 'line', x0: x + c, y0: y1 + c, x1: W + 40, y1: y1 + c });
+      return segs;
+    }
+    let maxUp = 0, maxDn = 0;
+    for (let i = 1; i < n; i++) {
+      const r = Math.abs(xs[perm[i]] - xs[perm[i - 1]]) / 2;
+      if (i & 1) maxUp = Math.max(maxUp, r); else maxDn = Math.max(maxDn, r);
+    }
+    const gap = Math.max(12, Math.min(28, (xs[1] ?? xs[0] * 2) - xs[0]) * 0.5);
+    const exitUp = (n & 1) === 1;
+    const vyUp = Math.min(1, (topRoom - gap * 1.6) / Math.max(maxUp, 1));
+    const vyDn = Math.min(1, (botRoom - gap * 1.6) / Math.max(maxDn, 1));
+    segs.push({ t: 'line', x0: xs[perm[0]], y0: H + 40, x1: xs[perm[0]], y1: roadY });
+    for (let i = 1; i < n; i++) {
+      const xa = xs[perm[i - 1]], xb = xs[perm[i]], up = (i & 1) === 1;
+      const rx = Math.abs(xb - xa) / 2;
+      segs.push({ t: 'arc', cx: (xa + xb) / 2, rx, ry: rx * (up ? vyUp : vyDn), up, ltr: xa < xb });
+    }
+    const xl = xs[perm[n - 1]], c = gap;
+    const h = (exitUp ? maxUp * vyUp : maxDn * vyDn) + gap * 1.2;
+    const y1 = exitUp ? roadY - (h - c) : roadY + (h - c);
+    segs.push({ t: 'line', x0: xl, y0: roadY, x1: xl, y1: y1 });
+    segs.push(exitUp
+      ? { t: 'corner', cx: xl + c, cy: y1, r: c, a0: Math.PI, a1: Math.PI * 1.5, ccw: false }
+      : { t: 'corner', cx: xl + c, cy: y1, r: c, a0: Math.PI, a1: Math.PI / 2, ccw: true });
+    const yE = exitUp ? y1 - c : y1 + c;
+    segs.push({ t: 'line', x0: xl + c, y0: yE, x1: W + 40, y1: yE });
+    return segs;
+  }
+  function toPath2D(segs) {
+    const p = new Path2D();
+    segs.forEach((s, i) => {
+      if (s.t === 'line') { if (i === 0) p.moveTo(s.x0, s.y0); p.lineTo(s.x1, s.y1); }
+      else if (s.t === 'arc') {
+        if (s.up) s.ltr ? p.ellipse(s.cx, roadY, s.rx, s.ry, 0, Math.PI, 2 * Math.PI, false)
+                        : p.ellipse(s.cx, roadY, s.rx, s.ry, 0, 2 * Math.PI, Math.PI, true);
+        else s.ltr ? p.ellipse(s.cx, roadY, s.rx, s.ry, 0, Math.PI, 0, true)
+                   : p.ellipse(s.cx, roadY, s.rx, s.ry, 0, 0, Math.PI, false);
+      } else p.arc(s.cx, s.cy, s.r, s.a0, s.a1, s.ccw);
+    });
+    return p;
+  }
+  // Sample the river as a polyline (for drawing it on, and for the flow).
+  function sample(segs, step = 3) {
+    const pts = [];
+    const push = (x, y) => pts.push(x, y);
+    for (const s of segs) {
+      if (s.t === 'line') {
+        const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), k = Math.max(2, Math.ceil(L / step));
+        for (let i = 0; i <= k; i++) push(s.x0 + (s.x1 - s.x0) * i / k, s.y0 + (s.y1 - s.y0) * i / k);
+      } else if (s.t === 'arc') {
+        const L = Math.PI * (s.rx + s.ry) / 2, k = Math.max(8, Math.ceil(L / step));
+        for (let i = 0; i <= k; i++) {
+          const u = i / k, th = s.ltr ? Math.PI * (1 - u) : Math.PI * u;
+          push(s.cx + s.rx * Math.cos(th), roadY + (s.up ? -1 : 1) * s.ry * Math.sin(th));
+        }
+      } else {
+        const k = Math.max(6, Math.ceil(Math.abs(s.a1 - s.a0) * s.r / step));
+        for (let i = 0; i <= k; i++) { const a = s.a0 + (s.a1 - s.a0) * i / k; push(s.cx + s.r * Math.cos(a), s.cy + s.r * Math.sin(a)); }
+      }
+    }
+    return new Float32Array(pts);
+  }
+
+  // ---------- drawing ----------
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = innerWidth; H = innerHeight; roadY = Math.round(H * 0.5);
+    for (const c of [canvas, bg, ghost]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+    for (const x of [ctx, bgx, gx]) x.setTransform(DPR, 0, 0, DPR, 0, 0);
+    paintBackground();
+    if (feat) feat.geo = null;
+  }
+  function paintBackground() {
+    const g = bgx.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.75);
+    g.addColorStop(0, C.land); g.addColorStop(1, C.ink);
+    bgx.fillStyle = g; bgx.fillRect(0, 0, W, H);
+    // faint contour lines, like a survey map of the flood plain
+    bgx.lineWidth = 1;
+    for (let k = 0; k < 26; k++) {
+      bgx.strokeStyle = `rgba(110, 150, 170, ${0.025 + 0.02 * (k % 3 === 0)})`;
+      bgx.beginPath();
+      const base = (k / 26) * H, amp = 14 + 22 * Math.sin(k * 1.7), f = 0.004 + 0.002 * Math.cos(k);
+      for (let x = -10; x <= W + 10; x += 12) {
+        const y = base + amp * Math.sin(x * f + k) + 9 * Math.sin(x * f * 2.3 - k * 0.7);
+        x < 0 ? bgx.moveTo(x, y) : bgx.lineTo(x, y);
+      }
+      bgx.stroke();
+    }
+  }
+  function drawRoad(xs, glowAt) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(205, 191, 156, 0.07)';
+    ctx.fillRect(0, roadY - 7, W, 14);
+    ctx.strokeStyle = 'rgba(205, 191, 156, 0.32)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, roadY - 7.5); ctx.lineTo(W, roadY - 7.5);
+    ctx.moveTo(0, roadY + 7.5); ctx.lineTo(W, roadY + 7.5); ctx.stroke();
+    ctx.setLineDash([10, 12]); ctx.strokeStyle = 'rgba(205, 191, 156, 0.22)';
+    ctx.beginPath(); ctx.moveTo(0, roadY); ctx.lineTo(W, roadY); ctx.stroke();
+    ctx.setLineDash([]);
+    xs.forEach((x, i) => {
+      const lit = glowAt ? glowAt[i] : 0;
+      const r = 2.2 + 3 * lit;
+      const g = ctx.createRadialGradient(x, roadY, 0, x, roadY, 14 + 16 * lit);
+      g.addColorStop(0, `rgba(255, 184, 77, ${0.55 + 0.45 * lit})`); g.addColorStop(1, 'rgba(255, 184, 77, 0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, roadY, 14 + 16 * lit, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = C.spark; ctx.beginPath(); ctx.arc(x, roadY, r, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+  }
+  function strokeGhost(path2d, alpha, width = 1) {
+    gx.save();
+    gx.globalCompositeOperation = 'lighter';
+    gx.strokeStyle = `rgba(95, 227, 208, ${alpha})`; gx.lineWidth = width;
+    gx.stroke(path2d);
+    gx.restore();
+  }
+  function fadeGhost(a) {
+    gx.save(); gx.globalCompositeOperation = 'destination-out';
+    gx.fillStyle = `rgba(0,0,0,${a})`; gx.fillRect(0, 0, W, H); gx.restore();
+  }
+  function clearGhost() { gx.clearRect(0, 0, W, H); }
+
+  // the featured river: drawn on from the south, then flowing
+  let feat = null;
+  function setFeatured(n, perm) { feat = { n, perm, geo: null }; }
+  function featGeo() {
+    if (!feat) return null;
+    if (!feat.geo) {
+      const segs = geometry(feat.n, feat.perm);
+      const pts = sample(segs);
+      const cum = new Float32Array(pts.length / 2);
+      for (let i = 1; i < cum.length; i++) cum[i] = cum[i - 1] + Math.hypot(pts[2 * i] - pts[2 * i - 2], pts[2 * i + 1] - pts[2 * i - 1]);
+      feat.geo = { segs, pts, cum, path: toPath2D(segs) };
+    }
+    return feat.geo;
+  }
+  function drawFeatured(progress, time, bright = 1) {
+    const g = featGeo(); if (!g) return null;
+    const { pts, cum } = g, total = cum[cum.length - 1], upto = total * progress;
+    let k = 1; while (k < cum.length && cum[k] <= upto) k++;
+    const tracePath = () => { ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 1; i < k; i++) ctx.lineTo(pts[2 * i], pts[2 * i + 1]); };
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    tracePath(); ctx.strokeStyle = `rgba(95, 227, 208, ${0.10 * bright})`; ctx.lineWidth = 16; ctx.stroke();
+    tracePath(); ctx.strokeStyle = `rgba(95, 227, 208, ${0.22 * bright})`; ctx.lineWidth = 7; ctx.stroke();
+    tracePath(); ctx.strokeStyle = `rgba(150, 240, 228, ${0.95 * bright})`; ctx.lineWidth = 2.2; ctx.stroke();
+    // flowing water: light moving downstream
+    tracePath(); ctx.setLineDash([3, 17]); ctx.lineDashOffset = -time * 0.06;
+    ctx.strokeStyle = `rgba(235, 255, 252, ${0.85 * bright})`; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.restore();
+    const hx = pts[2 * (k - 1)], hy = pts[2 * (k - 1) + 1];
+    if (progress < 1) {
+      const rg = ctx.createRadialGradient(hx, hy, 0, hx, hy, 22);
+      rg.addColorStop(0, 'rgba(235, 255, 252, 0.9)'); rg.addColorStop(1, 'rgba(95, 227, 208, 0)');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(hx, hy, 22, 0, Math.PI * 2); ctx.fill();
+    }
+    return { hx, hy, progress };
+  }
+
+  // ---------- HUD ----------
+  VALUES.forEach((v, n) => {
+    const s = document.createElement('span');
+    s.innerHTML = `<small>${n}</small>${fmt(v)}`;
+    $strip.appendChild(s);
+  });
+  const stripItems = [...$strip.children];
+  let hudN = -1;
+  function setN(n) {
+    if (n === hudN) return;
+    hudN = n;
+    $n.innerHTML = `<i>n</i> = ${n}`;
+    $n.classList.add('pulse'); setTimeout(() => $n.classList.remove('pulse'), 260);
+    const v = VALUES[n];
+    $count.innerHTML = `<b>${fmt(v)}</b> ${v === 1 ? 'river' : 'rivers'}`;
+    stripItems.forEach((el, i) => { el.classList.toggle('on', i === n); el.classList.toggle('done', i < n); });
+    const el = stripItems[n];
+    $strip.scrollLeft = el.offsetLeft - $strip.clientWidth / 2 + el.clientWidth / 2;
+  }
+  function setStatus(text) { if ($status.textContent !== text) $status.textContent = text; }
+
+  // ---------- the film ----------
+  const sampleEvenly = (arr, k) => arr.length <= k ? arr : Array.from({ length: k }, (_, i) => arr[Math.floor(i * arr.length / k)]);
+  function buildTimeline() {
+    const items = [];
+    const plan = [ // n, how many to show, draw ms, hold ms
+      [0, 1, 2600, 900], [1, 1, 2400, 800], [2, 1, 2300, 700], [3, 2, 1900, 600], [4, 3, 1500, 500],
+      [5, 8, 1000, 300], [6, 14, 650, 180], [7, 18, 420, 110], [8, 22, 300, 70],
+    ];
+    for (const [n, k, d, h] of plan) {
+      items.push({ kind: 'intro', n, dur: n < 5 ? 1100 : 750 });
+      const all = [...allMeanders(n)];
+      sampleEvenly(all, k).forEach((perm, i) => items.push({ kind: 'river', n, perm, i: Math.floor(i * all.length / Math.min(k, all.length)), of: all.length, draw: d, hold: h, dur: d + h }));
+    }
+    [[9, 2600], [10, 2700], [11, 2900], [12, 3100], [13, 3400], [14, 3900]].forEach(([n, dur]) => {
+      items.push({ kind: 'intro', n, dur: 420 });
+      items.push({ kind: 'burst', n, dur });
+    });
+    for (let n = 15; n <= 32; n++) {
+      items.push({ kind: 'sweep', n, dur: Math.max(650, 1900 - (n - 15) * 85) });
+    }
+    items.push({ kind: 'end', n: 32, dur: Infinity });
+    return items;
+  }
+
+  let timeline = [], idx = 0, local = 0, last = 0, clock = 0, paused = false, gen = null, shown = 0;
+  let xsCur = [], xsFrom = [], xsTo = [];
+  function start() {
+    timeline = buildTimeline(); idx = 0; local = 0; clock = 0; gen = null; shown = 0;
+    clearGhost(); feat = null; xsCur = []; enter(timeline[0]);
+  }
+  function enter(it) {
+    local = 0;
+    setN(it.n);
+    if (it.kind === 'intro') { xsFrom = xsCur.slice(); xsTo = bridgeXs(it.n); feat = null; }
+    if (it.kind === 'river') { setFeatured(it.n, it.perm); xsCur = bridgeXs(it.n); }
+    if (it.kind === 'burst') { gen = allMeanders(it.n); shown = 0; xsCur = bridgeXs(it.n); }
+    if (it.kind === 'sweep') { xsCur = bridgeXs(it.n); feat = null; }
+    if (it.kind === 'end') {
+      xsCur = bridgeXs(32);
+      $status.innerHTML = 'counted exactly by a transfer matrix proved correct in Lean 4 · <a href="https://github.com/querygraph/meander" target="_blank" rel="noopener">github.com/querygraph/meander</a>';
+    }
+  }
+  function lerpXs(t) {
+    const e = 1 - Math.pow(1 - t, 3), out = [];
+    for (let i = 0; i < xsTo.length; i++) {
+      const from = xsFrom.length ? (xsFrom[Math.min(i, xsFrom.length - 1)] ?? xsTo[i]) : W + 40;
+      out.push(from + (xsTo[i] - from) * e);
+    }
+    return out;
+  }
+
+  function frame(now) {
+    const dt = last ? Math.min(64, now - last) : 16; last = now;
+    if (!paused) { local += dt; clock += dt; }
+    let it = timeline[idx];
+    while (local >= it.dur) { local -= it.dur; idx++; it = timeline[idx]; enter(it); }
+
+    ctx.drawImage(bg, 0, 0, W, H);
+    let lit = null;
+
+    if (it.kind === 'intro') {
+      const t = Math.min(1, local / it.dur);
+      if (!paused) fadeGhost(0.08);
+      xsCur = lerpXs(t);
+      setStatus(it.n === 0 ? 'no bridges yet' : `${it.n} ${it.n === 1 ? 'bridge' : 'bridges'}`);
+    } else if (it.kind === 'river') {
+      const p = Math.min(1, local / it.draw);
+      if (p >= 1 && !it.stamped) { strokeGhost(featGeo().path, it.n < 6 ? 0.30 : 0.18, 1.2); it.stamped = true; }
+      ctx.drawImage(ghost, 0, 0, W, H);
+      const head = drawFeatured(p, clock, 1);
+      lit = xsCur.map((x) => head && Math.abs(head.hx - x) < 10 && Math.abs(head.hy - roadY) < 12 ? 1 : 0);
+      setStatus(`drawing river ${fmt(it.i + 1)} of ${fmt(it.of)}`);
+    } else if (it.kind === 'burst') {
+      if (!paused) {
+        fadeGhost(0.035);
+        const target = Math.min(VALUES[it.n], Math.ceil(VALUES[it.n] * Math.pow(local / it.dur, 1.6)));
+        const t0 = performance.now();
+        let lastPerm = null;
+        while (shown < target && performance.now() - t0 < 9) {
+          const nx = gen.next(); if (nx.done) { shown = VALUES[it.n]; break; }
+          shown++; lastPerm = nx.value;
+          strokeGhost(toPath2D(geometry(it.n, lastPerm)), it.n < 12 ? 0.07 : 0.045, 1);
+        }
+        if (lastPerm) setFeatured(it.n, lastPerm);
+      }
+      ctx.drawImage(ghost, 0, 0, W, H);
+      drawFeatured(1, clock, 0.55);
+      setStatus(`river ${fmt(Math.max(1, shown))} of ${fmt(VALUES[it.n])}`);
+    } else if (it.kind === 'sweep') {
+      if (!paused) {
+        fadeGhost(0.06);
+        const t0 = performance.now();
+        let p = null, made = 0;
+        while (performance.now() - t0 < 8 && made < 30) {
+          const m = randomMeander(it.n); made++;
+          if (m) { p = m; strokeGhost(toPath2D(geometry(it.n, m)), 0.06, 1); }
+        }
+        if (p) setFeatured(it.n, p);
+      }
+      ctx.drawImage(ghost, 0, 0, W, H);
+      drawFeatured(1, clock, 0.5);
+      const u = Math.min(1, local / it.dur), shownCount = Math.floor(VALUES[it.n] * u * u);
+      setStatus(`passing river ${fmt(Math.max(1, shownCount))} of ${fmt(VALUES[it.n])}`);
+    } else if (it.kind === 'end') {
+      if (!paused) {
+        fadeGhost(0.012);
+        if (Math.floor(clock / 900) !== it.tick) {
+          it.tick = Math.floor(clock / 900);
+          const m = randomMeander(32);
+          if (m) { setFeatured(32, m); strokeGhost(toPath2D(geometry(32, m)), 0.10, 1); feat.born = clock; }
+        }
+      }
+      ctx.drawImage(ghost, 0, 0, W, H);
+      if (feat) drawFeatured(Math.min(1, (clock - (feat.born ?? clock)) / 850), clock, 0.8);
+    }
+    drawRoad(xsCur, lit);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- controls ----------
+  function setPaused(p) {
+    paused = p; $play.textContent = p ? 'Play' : 'Pause'; $play.setAttribute('aria-pressed', String(p));
+  }
+  $play.addEventListener('click', () => setPaused(!paused));
+  $replay.addEventListener('click', () => { start(); setPaused(false); });
+  addEventListener('resize', () => { resize(); clearGhost(); xsCur = bridgeXs(hudN); });
+
+  resize();
+  start();
+  if (reduced) {
+    // a still frame: every river with 7 crossings, one of them highlighted
+    setPaused(true);
+    idx = timeline.findIndex((x) => x.kind === 'river' && x.n === 7); enter(timeline[idx]);
+    for (const p of allMeanders(7)) strokeGhost(toPath2D(geometry(7, p)), 0.14, 1);
+    local = timeline[idx].draw;
+    setStatus('all 42 rivers with 7 crossings · press Play to animate');
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
