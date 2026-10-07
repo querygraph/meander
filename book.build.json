@@ -10,7 +10,7 @@
   "headboardImage": "cover/meanders.png",
   "version": {
     "source": "literal",
-    "value": "1.0.0"
+    "value": "1.0.1"
   },
   "dist": "paper/dist",
   "buildDir": "paper/build/firstpair",
