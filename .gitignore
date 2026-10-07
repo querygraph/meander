@@ -7,3 +7,18 @@ paper/*.aux
 paper/*.log
 paper/*.out
 paper/build/
+
+# fast counters
+rust/target/
+oxcaml/_build/
+
+# notebooks: the Lean REPL build, the kernel environment, failed builds
+notebook/.repl/
+notebook/.venv/
+notebook/*.ipynb.failed
+
+# GitHub Pages site (Jekyll) in docs/
+docs/_site/
+docs/.jekyll-cache/
+docs/.bundle/
+docs/vendor/

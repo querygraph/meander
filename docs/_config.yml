@@ -1,0 +1,18 @@
+title: Counting Arnold's Meanders
+description: >-
+  In how many ways can a river cross a straight road n times? A Lean 4 formalization of Arnold's
+  meander problem, with algorithms proved to count exactly right.
+url: https://querygraph.github.io
+baseurl: /meander
+theme: minima
+markdown: kramdown
+minima:
+  skin: auto
+header_pages: []
+# The blog post and its textpacks live here but are not part of the site.
+exclude:
+  - blog
+  - Gemfile
+  - Gemfile.lock
+  - .ruby-version
+  - vendor
