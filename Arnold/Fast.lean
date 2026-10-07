@@ -306,33 +306,4 @@ theorem closedMeanderCount_eq_meanderCount (n : ℕ) (hn : 1 ≤ n) :
     closedMeanderCount n = meanderCount (2 * n - 1) := by
   rw [closedMeanderCount_eq n hn, openMeanderCount_eq_meanderCount]
 
-/-! ### Certified values -/
-
-/-- Arnold's numbers for `n = 0, …, 9`, **checked by the Lean kernel**. No compiled code is
-trusted, only the proof that the search is correct. -/
-theorem openMeanderCount_values :
-    (List.range 10).map openMeanderCount = [1, 1, 1, 2, 3, 8, 14, 42, 81, 262] := by
-  rw [show openMeanderCount = meanderCount from funext openMeanderCount_eq_meanderCount]
-  decide +kernel
-
-/-- Closed meanders of orders `1, …, 5`, also checked by the kernel. -/
-theorem closedMeanderCount_values :
-    (List.range' 1 5).map closedMeanderCount = [1, 2, 8, 42, 262] := by
-  change [closedMeanderCount 1, closedMeanderCount 2, closedMeanderCount 3,
-    closedMeanderCount 4, closedMeanderCount 5] = _
-  rw [closedMeanderCount_eq_meanderCount 1 (by omega), closedMeanderCount_eq_meanderCount 2
-    (by omega), closedMeanderCount_eq_meanderCount 3 (by omega),
-    closedMeanderCount_eq_meanderCount 4 (by omega), closedMeanderCount_eq_meanderCount 5
-    (by omega)]
-  decide +kernel
-
-set_option linter.style.native false in
-/-- Arnold's numbers for `n = 0, …, 13`. These are computed by the Lean interpreter
-(`native_decide`), so they trust the compiler as well as the kernel. -/
-theorem openMeanderCount_values_native :
-    (List.range 14).map openMeanderCount =
-      [1, 1, 1, 2, 3, 8, 14, 42, 81, 262, 538, 1828, 3926, 13820] := by
-  rw [show openMeanderCount = meanderCount from funext openMeanderCount_eq_meanderCount]
-  native_decide
-
 end Arnold

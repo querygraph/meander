@@ -222,8 +222,9 @@ theorem encode_spec :
 
 end
 
-/-- **The transfer matrix counts Arnold's meanders**, for every `m`. -/
-theorem tmCount_eq (m : ℕ) : tmCount m = openMeanderCount m := by
+theorem tmCountWith_eq (comp : List (St × ℕ) → List (St × ℕ))
+    (hcomp : ∀ g L, wsum g (comp L) = wsum g L) (m : ℕ) :
+    tmCountWith comp m = openMeanderCount m := by
   -- the spec as a count over lists
   have hspec : openMeanderCount m = (perms m (List.range m)).countP
       (fun s => decide (NoCross (lpt m s) (m + 1))) := by
@@ -232,7 +233,8 @@ theorem tmCount_eq (m : ℕ) : tmCount m = openMeanderCount m := by
       Fintype.card_congr (Equiv.subtypeEquivRight fun σ => by
         rw [IsMeander, show pathPt σ = lpt m (toList σ) from funext (pathPt_eq_lpt σ)])
     rw [h, card_eq_countP m (fun l => NoCross (lpt m l) (m + 1))]
-  rw [tmCount_eq_countP, hspec, List.countP_eq_length_filter, List.countP_eq_length_filter,
+  rw [tmCountWith_eq_countP comp hcomp, hspec, List.countP_eq_length_filter,
+    List.countP_eq_length_filter,
     ← List.toFinset_card_of_nodup ((nodup_sufWords m _ _).filter _),
     ← List.toFinset_card_of_nodup ((nodup_perms _ _ List.nodup_range).filter _)]
   have hmp := mem_perms m (List.range m) (by simp)
@@ -250,5 +252,13 @@ theorem tmCount_eq (m : ℕ) : tmCount m = openMeanderCount m := by
     have hp := (hmp l).1 hl.1
     obtain ⟨hmem, hacc, hdec⟩ := encode_spec hp hl.2
     exact ⟨encode m l, by simp [hmem, hacc], hdec⟩
+
+/-- **The transfer matrix counts Arnold's meanders**, for every `m`. -/
+theorem tmCount_eq (m : ℕ) : tmCount m = openMeanderCount m :=
+  tmCountWith_eq compress compress_wsum m
+
+/-- The kernel-friendly version counts them too. -/
+theorem tmCountK_eq (m : ℕ) : tmCountK m = openMeanderCount m :=
+  tmCountWith_eq compressK compressK_wsum m
 
 end Arnold.TM

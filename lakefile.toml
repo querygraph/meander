@@ -21,7 +21,3 @@ name = "Arnold"
 [[lean_exe]]
 name = "meanders"
 root = "Main"
-
-[[lean_exe]]
-name = "tm"
-root = "TMMain"

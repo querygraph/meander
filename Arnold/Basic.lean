@@ -37,8 +37,9 @@ known only by computer enumeration (OEIS A005316). This file states the problem 
 defines closed meanders (A005315), and proves general facts (at least one meander for every
 `n`, and at most `n!`). See also:
 * `Arnold.ClosedOpen`: `closed(n) = open(2n - 1)` for every `n ≥ 1`, via an explicit bijection;
-* `Arnold.Fast`: a pruned search `meanderCount`, proved equal to `openMeanderCount`, and the
-  values it certifies.
+* `Arnold.Fast`: a pruned search `meanderCount`, proved equal to `openMeanderCount`;
+* `Arnold.TM.Main`: a transfer matrix `TM.tmCount`, proved equal to `openMeanderCount`;
+* `Arnold.Values`: certified values.
 -/
 
 namespace Arnold

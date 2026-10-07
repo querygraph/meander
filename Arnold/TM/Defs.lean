@@ -122,13 +122,36 @@ def compress (L : List (St × Nat)) : List (St × Nat) :=
 def expand (m x : Nat) (L : List (St × Nat)) : List (St × Nat) :=
   L.flatMap fun sc => (acts m x).filterMap fun a => (step m x sc.1 a).map fun s' => (s', sc.2)
 
-/-- The layer after processing points `0, …, k-1`. -/
-def layer (m : Nat) : Nat → List (St × Nat)
-  | 0 => [(init, 1)]
-  | k + 1 => compress (expand m k (layer m k))
+/-- How many of the points `k, …, m` still to come have an arc on side `σ`: each can close at
+most one open arc there. -/
+def cap (m k : Nat) (σ : Bool) : Nat :=
+  if k ≤ m then (m - k) + (if (m % 2 == 1) == σ then 1 else 0) else 0
 
-/-- **Transfer-matrix meander count.** -/
-def tmCount (m : Nat) : Nat :=
-  ((layer m (m + 1)).map fun sc => if sc.1 = final then sc.2 else 0).sum
+/-- A state can still be finished only if the remaining points can close its open arcs (all of
+them above the road, all but the one `S` closes below). -/
+def viable (m k : Nat) (s : St) : Bool :=
+  (s.stk true).length ≤ cap m k true && (s.stk false).length ≤ cap m k false + 1
+
+/-- The layer after processing points `0, …, k-1`, merging equal states with `comp` and keeping
+only viable states. -/
+def layerWith (comp : List (St × Nat) → List (St × Nat)) (m : Nat) : Nat → List (St × Nat)
+  | 0 => [(init, 1)]
+  | k + 1 => (comp (expand m k (layerWith comp m k))).filter fun sc => viable m (k + 1) sc.1
+
+def tmCountWith (comp : List (St × Nat) → List (St × Nat)) (m : Nat) : Nat :=
+  ((layerWith comp m (m + 1)).map fun sc => if sc.1 = final then sc.2 else 0).sum
+
+/-- **Transfer-matrix meander count** (compiled: merges by sorting). -/
+def tmCount (m : Nat) : Nat := tmCountWith compress m
+
+/-- Add one state to a list of distinct states. Structural recursion, so the kernel can run it. -/
+def insertAdd (sc : St × Nat) : List (St × Nat) → List (St × Nat)
+  | [] => [sc]
+  | (s, c) :: L => if s = sc.1 then (s, c + sc.2) :: L else (s, c) :: insertAdd sc L
+
+def compressK (L : List (St × Nat)) : List (St × Nat) := L.foldr insertAdd []
+
+/-- The same count with a kernel-friendly merge, for values checked by `decide`. -/
+def tmCountK (m : Nat) : Nat := tmCountWith compressK m
 
 end Arnold.TM
