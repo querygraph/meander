@@ -93,9 +93,9 @@
     .readout { gap: 10px; }
   }
   /* Hosted on firstpair.org/learn/, the library injects a back link at the top left. */
-  body:has(.firstpair-library-link) .top { top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 48px); }
+  body:has(a[aria-label^="Back to First Pair"]) .top { top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 48px); }
   @media (max-width: 560px) {
-    body:has(.firstpair-library-link) .top { top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 92px); }
+    body:has(a[aria-label^="Back to First Pair"]) .top { top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 92px); }
   }
 </style>
 </head>
