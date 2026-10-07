@@ -452,11 +452,68 @@ decorated machine bridges the gap: it carries explicit pieces of river, so the c
 argument becomes reasoning about lists. Making the abstract machine literally the decorated one
 with decorations forgotten (\code{step\_abs}) means no separate refinement proof is needed.
 
+\subsection{Meandric permutations and the conjectured scaling limit}\label{sec:permutons}
+The specification is a statement about permutations, and the same permutations appear in recent
+probability. Borga, Gwynne and Sun~\cite{bgs} attach to a closed meander its \emph{meandric
+permutation}: number the crossings from west to east, and again in the order in which the
+river meets them; the permutation relates the two orders. Up to inversion and the choice of
+where and in which direction the river is started, this is the permutation $\sigma$ of
+\code{IsClosedMeander}, and Rosenstiehl~\cite{rosenstiehl84} had studied the same objects as
+planar permutations. The formalization therefore counts meandric permutations exactly, and
+Theorem~\ref{thm:closed-open} is a bijection between meandric permutations of size $2n$ and
+open meanders with $2n-1$ crossings.
+
+Borga, Gwynne and Sun conjecture that a uniform random meander, viewed as a planar map with two
+Hamiltonian paths (the road and the river), converges to a Liouville quantum gravity surface
+with matter central charge $-4$, that is $\gamma = \sqrt{(17-\sqrt{145})/3} \approx 1.29$,
+decorated by two independent space-filling SLE$_8$ curves, and that the plots of uniform
+meandric permutations converge to the corresponding \emph{meandric permuton}. They prove, among
+other things, that the longest increasing subsequence of permutations sampled from the
+permuton is sublinear. The conjecture is the probabilistic counterpart of the asymptotic formula
+of Di Francesco, Golinelli and Guitter~\cite{dgg00},
+\[ M_n \sim C\, A^n\, n^{-\alpha}, \qquad \alpha = \frac{29+\sqrt{145}}{12} \approx 3.4201, \]
+for the number $M_n$ of closed meanders of order $n$, with $A \approx 12.2629$ estimated by
+Jensen and Guttmann~\cite{jensen00,jensen-guttmann}.
+
+Exact counts test the exponent directly. With $A$ fixed at that estimate,
+\[ \alpha_n = -\frac{\log\bigl(M_{n+1}/(A M_n)\bigr)}{\log(1 + 1/n)} \]
+estimates $\alpha$, with an error of order $1/n$; extrapolating linearly in $1/n$ from $\alpha_{n-2}$ and $\alpha_n$ removes most
+of it. Table~\ref{tab:exponent} uses $M_n = \mathrm{open}(2n-1)$
+(Theorem~\ref{thm:closed-open}) with open counts up to $45$ crossings, computed by the
+transfer matrix of Section~\ref{sec:tm} run in the parallel programs described below. The
+extrapolated values increase steadily towards $3.4201$. This is numerical evidence for the
+conjectured exponent, not a proof, and it assumes the estimate of $A$.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{rrrr}
+\toprule
+$n$ & $M_{n+1}/M_n$ & $\alpha_n$ & extrapolated \\
+\midrule
+12 & 9.4415 & 3.2665 & 3.4053 \\
+14 & 9.7747 & 3.2870 & 3.4100 \\
+16 & 10.0377 & 3.3027 & 3.4129 \\
+18 & 10.2506 & 3.3152 & 3.4149 \\
+20 & 10.4263 & 3.3253 & 3.4163 \\
+22 & 10.5739 & 3.3337 & 3.4172 \\
+\midrule
+\multicolumn{3}{r}{conjecture~\cite{dgg00}} & 3.4201 \\
+\bottomrule
+\end{tabular}
+\caption{Estimates of the meander exponent $\alpha$ from exact counts of closed meanders, with
+the growth constant fixed at $A = 12.2629$.}
+\label{tab:exponent}
+\end{table}
+
 \subsection{Limitations and further work}
-Our transfer matrix is far from the state of the art. Jensen's algorithm~\cite{jensen00}
-encodes states more compactly and enumerates well beyond $n=32$; verifying such an encoding is a
-natural next step, and the generic counting theorem already accepts any merge procedure that
-preserves weighted sums. A second direction is to formalize the rigorous growth-rate bounds of
+Our verified transfer matrix is far from the state of the art. Jensen's
+algorithm~\cite{jensen00} encodes states more compactly and enumerates well beyond $n=32$. The
+repository also contains two unverified programs, in Rust and in OxCaml, that run the same
+machine with each state packed into one machine word (reading the open arcs along the cut, they
+form a non-crossing matching, a bracket word) and every layer spread over all cores. They
+reproduce the published values up to $n = 48$. Verifying such an encoding is a natural next
+step, and the generic counting theorem already accepts any merge procedure that preserves
+weighted sums. A second direction is to formalize the rigorous growth-rate bounds of
 Albert and Paterson~\cite{albert-paterson}, which would make our Catalan bound one instance of
 a more general framework. Finally, the question that motivated the work, a closed formula for
 the meander numbers, remains open; the conjectured critical exponent
@@ -475,6 +532,10 @@ J.~Combin.\ Theory Ser.~A \textbf{112} (2005), 250--262.
 V.~I.~Arnold, \emph{The branched covering $\mathbb{CP}^2 \to S^4$, hyperbolicity and
 projective topology}, Siberian Math.~J.\ \textbf{29} (1988), 717--726.
 
+\bibitem{bgs}
+J.~Borga, E.~Gwynne and X.~Sun, \emph{Permutons, meanders, and SLE-decorated Liouville quantum
+gravity}, J.~Eur.\ Math.\ Soc.\ \textbf{28} (2026), 4893--4949; arXiv:2207.02319.
+
 \bibitem{dgg97}
 P.~Di~Francesco, O.~Golinelli and E.~Guitter, \emph{Meander, folding, and arch statistics},
 Math.\ Comput.\ Modelling \textbf{26} (1997), 97--147.
@@ -486,6 +547,10 @@ Phys.~B \textbf{570} (2000), 699--712.
 \bibitem{jensen00}
 I.~Jensen, \emph{A transfer matrix approach to the enumeration of plane meanders}, J.~Phys.~A
 \textbf{33} (2000), 5953--5963.
+
+\bibitem{jensen-guttmann}
+I.~Jensen and A.~J.~Guttmann, \emph{Critical exponents of plane meanders}, J.~Phys.~A
+\textbf{33} (2000), L187--L192.
 
 \bibitem{lando-zvonkin}
 S.~K.~Lando and A.~K.~Zvonkin, \emph{Plane and projective meanders}, Theoret.\ Comput.\ Sci.\
@@ -507,6 +572,10 @@ Integer Sequences, \url{https://oeis.org/A005316}.
 \bibitem{oeis-a005315}
 OEIS Foundation, \emph{Sequence A005315: Closed meandric numbers}, The On-Line Encyclopedia of
 Integer Sequences, \url{https://oeis.org/A005315}.
+
+\bibitem{rosenstiehl84}
+P.~Rosenstiehl, \emph{Planar permutations defined by two intersecting Jordan curves}, in Graph
+Theory and Combinatorics (Cambridge, 1983), Academic Press, London, 1984, 259--271.
 
 \bibitem{touchard50}
 J.~Touchard, \emph{Contributions \`a l'\'etude du probl\`eme des timbres-poste}, Canad.\

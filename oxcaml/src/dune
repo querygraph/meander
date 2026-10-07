@@ -1,0 +1,10 @@
+(library
+ (name meanders)
+ (libraries base await capsule parallel parallel.scheduler portable
+  ocaml_intrinsics_kernel stdlib_upstream_compatible)
+ (preprocess
+  (pps ppx_template))
+ (ocamlopt_flags
+  (:standard -O3 -unboxed-types -inline 200))
+ (flags
+  (:standard -w +a-4-9-40-41-42-44-45-70)))

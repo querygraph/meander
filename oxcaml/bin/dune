@@ -1,0 +1,5 @@
+(executable
+ (name meanders_ox)
+ (libraries meanders parallel parallel.scheduler unix)
+ (ocamlopt_flags
+  (:standard -O3)))

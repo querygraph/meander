@@ -1,0 +1,5 @@
+(lang dune 3.0)
+
+; Build optimized by default. The dev profile compiles libraries with -opaque, which
+; blocks flambda2's cross-module inlining (Word into Sweep) and costs ~2x.
+(profile release)
