@@ -68,7 +68,9 @@ theorem inv_dstep {m x : ℕ} {w : List (Bool × Bool)} {D D' : DSt} {a : Bool �
 
 theorem mem_sufWords (m : ℕ) : ∀ (f x : ℕ) (ws : List (Bool × Bool)), ws ∈ sufWords m f x →
     ws.length = f ∧ ∀ i (hi : i < ws.length), ws[i] ∈ acts m (x + i)
-  | 0, x, ws, h => by simp [sufWords] at h; subst h; simp
+  | 0, x, ws, h => by
+    simp only [sufWords, List.mem_singleton] at h
+    subst h; simp
   | f + 1, x, ws, h => by
     simp only [sufWords, List.mem_flatMap, List.mem_map] at h
     obtain ⟨a, ha, ws', hws', rfl⟩ := h
@@ -86,7 +88,9 @@ theorem inv_druns (m : ℕ) : ∀ (ws : List (Bool × Bool)) (x : ℕ) (w : List
     (D D' : DSt), Inv m x w D → x + ws.length ≤ m + 1 →
     (∀ i (hi : i < ws.length), ws[i] ∈ acts m (x + i)) → druns m x D ws = some D' →
     Inv m (x + ws.length) (w ++ ws) D'
-  | [], x, w, D, D', h, _, _, hr => by simp [druns] at hr; subst hr; simpa using h
+  | [], x, w, D, D', h, _, _, hr => by
+    simp only [druns, Option.some.injEq] at hr
+    subst hr; simpa using h
   | a :: ws, x, w, D, D', h, hlen, hacts, hr => by
     simp only [druns] at hr
     cases hs : dstep m x D a with

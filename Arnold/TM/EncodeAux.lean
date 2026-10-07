@@ -59,8 +59,8 @@ theorem pos_nbr {y : ℕ} {σ : Bool} (hs : HasSideM m y σ) :
     pos m l (nbr m l σ y) + 1 = pos m l y ∨ pos m l y + 1 = pos m l (nbr m l σ y) := by
   obtain ⟨hj, _, hc⟩ := arcIdx_spec hp hs
   generalize arcIdx m l σ y = j at hj hc
-  rcases hc with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [h2, h1, pos_lpt hp (by omega), pos_lpt hp (by omega)] <;>
-    omega
+  rcases hc with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;>
+    rw [h2, h1, pos_lpt hp (by omega), pos_lpt hp (by omega)] <;> omega
 
 omit hp in
 theorem hasSideM_le {y : ℕ} {σ : Bool} (hs : HasSideM m y σ) : y ≤ m + 1 := by
@@ -91,7 +91,7 @@ theorem stkF_max {k : ℕ} {σ : Bool} (hks : HasSideM m k σ) (hz : nbr m l σ 
   omega
 
 include hnc in
-theorem stkF_succ {k : ℕ} (hk : k ≤ m) (σ : Bool) :
+theorem stkF_succ {k : ℕ} (_hk : k ≤ m) (σ : Bool) :
     (HasSideM m k σ → k < nbr m l σ k → stkF m l σ (k + 1) = stkF m l σ k ++ [k]) ∧
     (HasSideM m k σ → nbr m l σ k < k →
       stkF m l σ k = (stkF m l σ k).dropLast ++ [nbr m l σ k] ∧

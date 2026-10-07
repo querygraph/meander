@@ -31,9 +31,13 @@ theorem top_of_close {k : ℕ} {D : DSt} (hk : k ≤ m) (hM : MI m l k D) {σ : 
   have := congrArg List.getLast? hmap
   rw [List.getLast?_map, List.getLast?_concat] at this
   cases ht : (D.stk σ).getLast? with
-  | none => rw [ht] at this; simp at this
-  | some t => rw [ht] at this; simp at this; exact ⟨t, rfl, this⟩
+  | none => rw [ht] at this; exact absurd this (by simp)
+  | some t =>
+    rw [ht] at this
+    simp only [Option.map_some, Option.some.injEq] at this
+    exact ⟨t, rfl, this⟩
 
+omit hnc in
 /-- **No loops.** At a bridge closing both sides, the two arcs being closed are not the two
 ends of one piece: otherwise the piece, a stretch of the river between this bridge's two
 neighbours, would have to pass through this bridge. -/
@@ -65,7 +69,7 @@ theorem no_cycle {k : ℕ} {ws : List (Bool × Bool)} {D : DSt} (hk : k < m)
   have hi1 : 1 ≤ i ∧ i ≤ m := by
     have := pos_lpt hp (i := i) (by have := pos_le hp (y := k) (by omega); omega)
     rcases Nat.eq_zero_or_pos i with h0 | h0
-    · rw [h0, lpt_zero' hp] at hki; omega
+    · rw [h0, lpt_zero'] at hki; omega
     · refine ⟨h0, ?_⟩
       by_contra hc
       have : i = m + 1 := by have := pos_le hp (y := k) (by omega); omega
@@ -148,8 +152,8 @@ theorem encode_step {k : ℕ} {ws : List (Bool × Bool)} {D : DSt} (hk : k ≤ m
       have hcF := (hdir false).2.1 hF
       obtain ⟨u, hu, huo⟩ := top_of_close hp hnc hk hM (hs true) hcT
       obtain ⟨lo, hl, hlo⟩ := top_of_close hp hnc hk hM (hs false) hcF
-      have hcyc := no_cycle hp hnc hkm hI hM hu hl huo hlo
-      simp only [dstep, if_pos hkm, hT, hF, hu, hl, hcyc, ↓reduceIte]
+      have hcyc := no_cycle hp hkm hI hM hu hl huo hlo
+      simp only [dstep, if_pos hkm, hu, hl, hcyc, ↓reduceIte]
       refine ⟨_, rfl, ?_⟩
       constructor
       · intro a b τ hab
@@ -167,7 +171,7 @@ theorem encode_step {k : ℕ} {ws : List (Bool × Bool)} {D : DSt} (hk : k ≤ m
       have hcT := (hdir true).2.1 hT
       have hoF := (hdir false).1.1 hF
       obtain ⟨u, hu, huo⟩ := top_of_close hp hnc hk hM (hs true) hcT
-      simp only [dstep, if_pos hkm, hT, hF, dOpenClose, Bool.not_false, hu]
+      simp only [dstep, if_pos hkm, dOpenClose, Bool.not_false, hu]
       refine ⟨_, rfl, ?_⟩
       constructor
       · intro a b τ hab
@@ -177,7 +181,7 @@ theorem encode_step {k : ℕ} {ws : List (Bool × Bool)} {D : DSt} (hk : k ≤ m
         · exact hM.arcs a b τ hab
       · intro σ
         cases σ
-        · simp only [stk_addArc, stk_push, Bool.false_eq_true, ↓reduceIte]
+        · simp only [stk_addArc, stk_push, ↓reduceIte]
           apply hpush false (hs false) hoF
           · rw [stk_link]; simp
           · rfl
@@ -188,7 +192,7 @@ theorem encode_step {k : ℕ} {ws : List (Bool × Bool)} {D : DSt} (hk : k ≤ m
       have hoT := (hdir true).1.1 hT
       have hcF := (hdir false).2.1 hF
       obtain ⟨lo, hl, hlo⟩ := top_of_close hp hnc hk hM (hs false) hcF
-      simp only [dstep, if_pos hkm, hT, hF, dOpenClose, Bool.not_true, hl]
+      simp only [dstep, if_pos hkm, dOpenClose, Bool.not_true, hl]
       refine ⟨_, rfl, ?_⟩
       constructor
       · intro a b τ hab
@@ -208,7 +212,7 @@ theorem encode_step {k : ℕ} {ws : List (Bool × Bool)} {D : DSt} (hk : k ≤ m
     · -- open both
       have hoT := (hdir true).1.1 hT
       have hoF := (hdir false).1.1 hF
-      simp only [dstep, if_pos hkm, hT, hF]
+      simp only [dstep, if_pos hkm]
       refine ⟨_, rfl, ?_⟩
       constructor
       · intro a b τ hab

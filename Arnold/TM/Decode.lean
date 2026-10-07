@@ -26,7 +26,7 @@ theorem share {A : List (ℕ × ℕ × Bool)} {a b c d : ℕ} {τ : Bool} (h1 : 
   have hne' : (a, b, τ) ≠ (c, d, τ) := fun he => by
     simp only [Prod.mk.injEq] at he; exact hne ⟨he.1, he.2.1⟩
   have hd := (List.nodup_flatMap.1 hn).2
-  haveI : Std.Symm (Function.onFun List.Disjoint
+  have : Std.Symm (Function.onFun List.Disjoint
       fun a : ℕ × ℕ × Bool => if a.2.2 = τ then [a.1, a.2.1] else []) :=
     ⟨fun _ _ h => List.Disjoint.symm h⟩
   have := hd.forall h1 h2 hne'
@@ -96,7 +96,8 @@ theorem meander_of_final {m : ℕ} {w : List (Bool × Bool)} {D : DSt} {t : Stra
   have hqnd : q.Nodup := List.nodup_cons.2 ⟨fun hm => by have := hlt _ hm; omega, hnd⟩
   have hQinj : ∀ i j, i ≤ m + 1 → j ≤ m + 1 → Q i = Q j → i = j := by
     intro i j hi hj he
-    simp only [hQ, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (show i < q.length by omega),
+    simp only [hQ, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (show i < q.length by omega),
       List.getElem?_eq_getElem (show j < q.length by omega), Option.getD_some] at he
     exact (hqnd.getElem_inj_iff).1 he
   -- arcs, with the south end's arc added
@@ -116,7 +117,8 @@ theorem meander_of_final {m : ℕ} {w : List (Bool × Bool)} {D : DSt} {t : Stra
       obtain ⟨τ, hτ⟩ := hc
       refine ⟨τ, ?_⟩
       have e1 : Q (i + 1) = seg[i]'(by omega) := by
-        simp [hQ, hq, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (show i < seg.length by omega)]
+        simp [hQ, hq, List.getD_eq_getElem?_getD,
+          List.getElem?_eq_getElem (show i < seg.length by omega)]
       have e2 : Q (i + 1 + 1) = seg[i + 1]'(by omega) := by
         simp [hQ, hq, List.getD_eq_getElem?_getD,
           List.getElem?_eq_getElem (show i + 1 < seg.length by omega)]

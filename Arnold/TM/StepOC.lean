@@ -231,12 +231,6 @@ theorem inv_OC {m x : ℕ} {w : List (Bool × Bool)} {D D' : DSt} {σ : Bool} (h
       fun Q T' hQ h1 h2 => h.disj _ Q t T' htg hQ h1 h2
     have dp : ∀ Q T', D.get? Q = some T' → Q ≠ .s c tc → Q ≠ p → tp.seg.Disjoint T'.seg :=
       fun Q T' hQ h1 h2 => h.disj p Q tp T' hpg hQ h2 (by rw [hpref]; exact h1)
-    have hPref : ∀ P T, D'.get? P = some T → P ≠ .s σ nσ → P ≠ p → T.ref = (Option.get! (D.get? P)).ref := by
-      intro P T hP h1 h2
-      rcases hnew P T hP with ⟨h3, _⟩ | ⟨h3, _⟩ | ⟨_, _, _, h4⟩
-      · exact absurd h3 h1
-      · exact absurd h3 h2
-      · simp [h4]
     rcases key P T hP with ⟨rfl, hs⟩ | ⟨rfl, hs⟩ | ⟨h1, h2, h3, hP'⟩ <;>
       rcases key Q T' hQ with ⟨rfl, hs'⟩ | ⟨rfl, hs'⟩ | ⟨h1', h2', h3', hQ'⟩
     · exact absurd rfl hQP
@@ -253,10 +247,7 @@ theorem inv_OC {m x : ℕ} {w : List (Bool × Bool)} {D D' : DSt} {σ : Bool} (h
     · rw [hs']
       exact (List.disjoint_append_left.2 ⟨dp _ _ hP' h2 h3,
         List.singleton_disjoint.2 (hxt _ _ hP')⟩).symm
-    · have hr : T.ref ≠ Q := by
-        intro he; apply hQr; rw [he]
-      exact h.disj P Q T T' hP' hQ' hQP (by
-        intro he; exact hQr he)
+    · exact h.disj P Q T T' hP' hQ' hQP hQr
   · intro y hy
     by_cases hyx : y = x
     · exact ⟨_, _, hUg, by simp [hU, hyx]⟩

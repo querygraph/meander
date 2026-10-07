@@ -49,6 +49,7 @@ theorem lm_nodup : l.Nodup := hp.nodup_iff.2 List.nodup_range
 
 theorem lm_mem {y : ℕ} : y ∈ l ↔ y < m := by rw [hp.mem_iff, List.mem_range]
 
+omit hp in
 theorem lpt_zero' : lpt m l 0 = m + 1 := by simp [lpt]
 
 theorem lpt_bridge {i : ℕ} (h1 : 1 ≤ i) (h2 : i ≤ m) :
@@ -65,14 +66,14 @@ theorem lpt_bridge_lt {i : ℕ} (h1 : 1 ≤ i) (h2 : i ≤ m) : lpt m l i < m :=
 
 theorem lpt_le {i : ℕ} (hi : i ≤ m + 1) : lpt m l i ≤ m + 1 := by
   rcases Nat.eq_zero_or_pos i with rfl | h0
-  · simp [lpt_zero' hp]
+  · simp [lpt_zero']
   · rcases Nat.lt_or_ge m i with h | h
     · rw [show i = m + 1 by omega, lpt_last hp]; omega
     · have := lpt_bridge_lt hp h0 h; omega
 
 theorem pos_lpt {i : ℕ} (hi : i ≤ m + 1) : pos m l (lpt m l i) = i := by
   rcases Nat.eq_zero_or_pos i with rfl | h0
-  · simp [pos, lpt_zero' hp]
+  · simp [pos, lpt_zero']
   rcases Nat.lt_or_ge m i with h | h
   · rw [show i = m + 1 by omega, lpt_last hp]; simp [pos]
   · have hb := lpt_bridge_lt hp h0 h
@@ -80,7 +81,7 @@ theorem pos_lpt {i : ℕ} (hi : i ≤ m + 1) : pos m l (lpt m l i) = i := by
     rw [lpt_bridge hp h0 h, List.Nodup.idxOf_getElem (lm_nodup hp)]
     omega
 
-theorem pos_le {y : ℕ} (hy : y ≤ m + 1) : pos m l y ≤ m + 1 := by
+theorem pos_le {y : ℕ} (_hy : y ≤ m + 1) : pos m l y ≤ m + 1 := by
   unfold pos
   split_ifs with h1 h2
   · have := List.idxOf_lt_length_of_mem ((lm_mem hp).2 h1); rw [lm_length hp] at this; omega
@@ -112,7 +113,7 @@ theorem lpt_pos {y : ℕ} (hy : y ≤ m + 1) : lpt m l (pos m l y) = y := by
     rw [lpt_bridge hp (by omega) (by omega)]
     simp
   · rw [h2, lpt_last hp]
-  · rw [lpt_zero' hp]; omega
+  · rw [lpt_zero']; omega
 
 theorem lpt_inj {i j : ℕ} (hi : i ≤ m + 1) (hj : j ≤ m + 1) (h : lpt m l i = lpt m l j) :
     i = j := by
@@ -165,13 +166,13 @@ theorem arcIdx_spec {y : ℕ} {σ : Bool} (hs : HasSideM m y σ) :
       · omega
       · exfalso; rw [h, hσ] at hpar; simp at hpar
     refine ⟨by omega, ?_, Or.inr ⟨by rw [show i - 1 + 1 = i by omega]; exact hlp.symm,
-      by first | trivial | rfl⟩⟩
+      trivial⟩⟩
     rw [bpar_sub i hi1, bool_ne hpar]
 
 theorem hasSide_of_arc {j : ℕ} (hj : j ≤ m) (k : ℕ) (hk : k = j ∨ k = j + 1) :
     HasSideM m (lpt m l k) (j % 2 == 1) := by
   rcases Nat.eq_zero_or_pos k with rfl | h0
-  · right; right; refine ⟨lpt_zero' hp, ?_⟩
+  · right; right; refine ⟨lpt_zero', ?_⟩
     rcases hk with hk | hk <;> [subst hk; omega]; rfl
   · rcases Nat.lt_or_ge m k with h | h
     · right; left
@@ -256,7 +257,7 @@ theorem nbr_eq_S {y : ℕ} {σ : Bool} (hs : HasSideM m y σ) (h : nbr m l σ y 
     σ = false ∧ y = lpt m l 1 := by
   obtain ⟨hj, hσ, hc⟩ := arcIdx_spec hp hs
   set j := arcIdx m l σ y
-  have hS : m + 1 = lpt m l 0 := (lpt_zero' hp).symm
+  have hS : m + 1 = lpt m l 0 := (lpt_zero').symm
   rcases hc with ⟨h1, h2⟩ | ⟨h1, h2⟩
   · rw [h2, hS] at h; have := lpt_inj hp (by omega) (by omega) h; omega
   · rw [h2, hS] at h

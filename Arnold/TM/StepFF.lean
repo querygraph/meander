@@ -218,10 +218,15 @@ theorem inv_FF {m x : ℕ} {w : List (Bool × Bool)} {D : DSt} {u l : Strand} (h
       refine cA.append ?_ ?_
       · cases B with
         | nil => simp
-        | cons b' B => simp at hB; subst hB; exact List.isChain_cons_cons.2 ⟨jb, cB⟩
+        | cons b' B =>
+          simp only [List.head?_cons, Option.some.injEq] at hB
+          subst hB; exact List.isChain_cons_cons.2 ⟨jb, cB⟩
       · intro a' ha' b' hb'
-        simp at hb'; subst hb'
-        rw [hA] at ha'; simp at ha'; subst ha'; exact ja
+        simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hb'
+        subst hb'
+        rw [hA] at ha'
+        simp only [Option.mem_def, Option.some.injEq] at ha'
+        subst ha'; exact ja
     rcases hnew P T hP with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨_, _, _, _, hP'⟩
     · exact join _ _ u.origin l.origin (by rw [hrev_u]; exact getLast?_reverse_eq hu_head)
         hl_head (cc _ _ hpug) (cc _ _ hlg) hj_u hj_l

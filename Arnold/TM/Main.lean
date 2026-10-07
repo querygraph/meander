@@ -72,6 +72,7 @@ section
 variable {m : ℕ} {l : List ℕ} (hp : l.Perm (List.range m)) (hnc : NoCross (lpt m l) (m + 1))
 include hp hnc
 
+omit hp hnc in
 theorem encode_mem_acts (k : ℕ) (hk : k < (encode m l).length) :
     (encode m l)[k] ∈ acts m k := by
   simp only [encode, List.getElem_map, List.getElem_range]
@@ -102,7 +103,7 @@ theorem encode_run : ∀ k ≤ m + 1, ∃ D, druns m 0 DSt.empty ((encode m l).t
     · rw [htake, druns_append, hr]
       simp [druns, hlen, hD']
     · rw [htake]
-      exact inv_dstep hI (by omega) (encode_mem_acts hp hnc k hklen) hD'
+      exact inv_dstep hI (by omega) (encode_mem_acts k hklen) hD'
 
 /-- **Encoding.** A meander's action sequence is accepted, and decodes back to the meander. -/
 theorem encode_spec :
@@ -110,7 +111,7 @@ theorem encode_spec :
       decode m (encode m l) = l := by
   have hlen : (encode m l).length = m + 1 := encode_length
   have hmem : encode m l ∈ sufWords m (m + 1) 0 :=
-    (mem_sufWords_iff m _ _ _).2 ⟨hlen, fun i hi => by simpa using encode_mem_acts hp hnc i hi⟩
+    (mem_sufWords_iff m _ _ _).2 ⟨hlen, fun i hi => by simpa using encode_mem_acts i hi⟩
   obtain ⟨D, hr, hI, hM⟩ := encode_run hp hnc (m + 1) le_rfl
   rw [List.take_of_length_le (by omega)] at hr hI
   -- the final state: nothing open above, one arc open below, from `lpt 1`
@@ -133,7 +134,7 @@ theorem encode_spec :
       have := hasSide_of_arc hp (j := 0) (by omega) 1 (Or.inr rfl)
       simpa using this
     have hn1 : nbr m l false (lpt m l 1) = m + 1 := by
-      rw [nbr_lpt hp (by omega)]; simp [lpt_zero' hp]
+      rw [nbr_lpt hp (by omega)]; simp [lpt_zero']
     have hnd : (stkF m l false (m + 1)).Nodup := List.nodup_range.filter _
     rw [← List.perm_singleton]
     refine (List.perm_ext_iff_of_nodup hnd (List.nodup_singleton _)).2 fun y => ?_
@@ -142,8 +143,9 @@ theorem encode_spec :
     swap
     · have := (nbr_hasSide hp hside1).1
       rcases Nat.eq_zero_or_pos m with h0 | h0
-      · subst h0; simp [lpt, List.getD_eq_getElem?_getD]
-        rw [List.eq_nil_of_length_eq_zero (lm_length hp)]; simp
+      · subst h0
+        rw [List.eq_nil_of_length_eq_zero (lm_length hp)]
+        simp [lpt]
       · have := lpt_bridge_lt hp (i := 1) le_rfl h0; omega
     · intro hy
       obtain ⟨hy1, hys, hy2⟩ := mem_stkF.1 hy
@@ -182,13 +184,13 @@ theorem encode_spec :
       · simp only [Prod.mk.injEq] at he
         obtain ⟨rfl, rfl, rfl⟩ := he
         refine ⟨Or.inr (Or.inr ⟨rfl, rfl⟩), ?_⟩
-        rw [hto, ← lpt_zero' hp, nbr_lpt hp (by omega)]; simp
+        rw [hto, ← lpt_zero', nbr_lpt hp (by omega)]; simp
       · exact hM.arcs a b τ hab
     set Q : ℕ → ℕ := fun i => ((m + 1) :: t.seg).getD i 0 with hQdef
     have hQ : ∀ i ≤ m + 1, Q i = lpt m l i := by
       intro i
       induction i with
-      | zero => intro _; simp [hQdef, lpt_zero' hp]
+      | zero => intro _; simp [hQdef, lpt_zero']
       | succ i ih =>
         intro hi
         have hs := halt i (by omega)

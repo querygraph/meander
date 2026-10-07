@@ -79,7 +79,8 @@ theorem get?_link (D : DSt) (q r : Ref) (ext : List ℕ) (p : Ref) :
 
 @[simp] theorem arcs_pop (D : DSt) (σ : Bool) : (D.pop σ).arcs = D.arcs := by simp [pop]
 
-@[simp] theorem arcs_link (D : DSt) (q r : Ref) (ext : List ℕ) : (D.link q r ext).arcs = D.arcs := by
+@[simp] theorem arcs_link (D : DSt) (q r : Ref) (ext : List ℕ) :
+    (D.link q r ext).arcs = D.arcs := by
   cases q <;> simp [link]
 
 @[simp] theorem arcs_addArc (D : DSt) (a : ℕ × ℕ × Bool) : (D.addArc a).arcs = a :: D.arcs := rfl
@@ -92,7 +93,8 @@ theorem get?_link (D : DSt) (q r : Ref) (ext : List ℕ) (p : Ref) :
     (D.pop σ).stk τ = if σ = τ then (D.stk τ).dropLast else D.stk τ := by
   simp only [pop, stk_setStk]; split_ifs with h <;> simp [h]
 
-@[simp] theorem stk_addArc (D : DSt) (a : ℕ × ℕ × Bool) (τ : Bool) : (D.addArc a).stk τ = D.stk τ := by
+@[simp] theorem stk_addArc (D : DSt) (a : ℕ × ℕ × Bool) (τ : Bool) :
+    (D.addArc a).stk τ = D.stk τ := by
   cases τ <;> rfl
 
 theorem stk_link (D : DSt) (q r : Ref) (ext : List ℕ) (τ : Bool) :
@@ -303,8 +305,8 @@ theorem inv_TT {m x : ℕ} {w : List (Bool × Bool)} {D : DSt} (h : Inv m x w D)
       · simp at h2; omega
       · have := DSt.lt_of_get? hj'; omega
     · rcases hnew _ _ hj with ⟨h2, rfl⟩ | ⟨h2, rfl⟩ | hj'
-      · simp [hL]; exact h.orig_lt _ _ hi'
-      · simp [hU]; exact h.orig_lt _ _ hi'
+      · simpa [hL] using h.orig_lt _ _ hi'
+      · simpa [hU] using h.orig_lt _ _ hi'
       · exact h.sorted σ i j t t' hi' hj' hij
   · intro p t hp
     rcases hnew p t hp with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | hp

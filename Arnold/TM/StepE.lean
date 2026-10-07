@@ -62,7 +62,7 @@ theorem inv_EO {m : ℕ} {w : List (Bool × Bool)} {D : DSt} {a : Bool × Bool} 
       · simp at h2; omega
       · have := DSt.lt_of_get? hj'; omega
     · rcases hnew _ _ hj with ⟨h2, rfl⟩ | hj'
-      · simp [hN]; exact h.orig_lt _ _ hi'
+      · simpa [hN] using h.orig_lt _ _ hi'
       · exact h.sorted σ i j t t' hi' hj' hij
   · intro p t hp
     rcases hnew p t hp with ⟨rfl, rfl⟩ | hp
