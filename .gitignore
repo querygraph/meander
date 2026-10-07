@@ -6,3 +6,4 @@ viz/*.mp4
 paper/*.aux
 paper/*.log
 paper/*.out
+paper/build/

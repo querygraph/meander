@@ -1,0 +1,56 @@
+{
+  "$schema": "../firstpair/publishing/book.build.schema.json",
+  "schemaVersion": 1,
+  "bookRoot": "paper",
+  "manuscript": "${buildDir}/manuscript.md",
+  "metadata": "paper/firstpair/metadata.yaml",
+  "stem": "arnold-meanders",
+  "title": "Counting Arnold's Meanders with Verified Algorithms",
+  "author": "Alexy Khrabrov",
+  "headboardImage": "cover/meanders.png",
+  "version": {
+    "source": "literal",
+    "value": "1.0.0"
+  },
+  "dist": "paper/dist",
+  "buildDir": "paper/build/firstpair",
+  "edition": "full",
+  "primaryFormat": "latex",
+  "mobi": false,
+  "pandoc": {
+    "reader": "markdown",
+    "tocDepth": 1,
+    "resourcePaths": [
+      "paper",
+      "${repoRoot}"
+    ],
+    "commonArgs": [
+      "--mathml"
+    ]
+  },
+  "epub": {
+    "coverImage": "cover/meanders.png",
+    "includeRenderedCover": false,
+    "titlePage": false,
+    "imprint": true
+  },
+  "html": {
+    "splitLevel": 1
+  },
+  "pdfFormats": [
+    {
+      "name": "latex",
+      "renderer": "hook",
+      "primary": true,
+      "run": "cp \"${buildDir}/latex/meanders.pdf\" \"${pdfOutput}\""
+    }
+  ],
+  "hooks": {
+    "prepare": [
+      {
+        "run": "paper/firstpair/prepare.sh \"${buildDir}\""
+      }
+    ]
+  },
+  "tutorial": "viz/arnold-meanders.html"
+}
