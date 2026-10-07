@@ -35,7 +35,8 @@
     "imprint": true
   },
   "html": {
-    "splitLevel": 1
+    "splitLevel": 1,
+    "luaFilter": "paper/firstpair/html-mathml.lua"
   },
   "pdfFormats": [
     {
