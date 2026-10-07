@@ -5,10 +5,15 @@
 No closed formula is known. This project states the problem precisely, proves facts about it,
 and computes the counts with algorithms that are **proved** to give exactly the right answer.
 
-- **Paper:** [*Counting Arnold's meanders with verified algorithms*](paper/meanders.pdf)
-  ([LaTeX source](paper/meanders.tex); builds with `tectonic paper/meanders.tex` or `pdflatex`).
-- **Visualization:** [`viz/index.html`](viz/index.html), an animation of the rivers for
-  n = 0 … 32; open it in a browser.
+- **Paper:** [*Counting Arnold's Meanders with Verified Algorithms*](https://firstpair.org/books/arnold-meanders/) on the
+  First Pair library's Math shelf ([PDF](https://firstpair.org/arnold-meanders/pdf/),
+  [EPUB](https://firstpair.org/arnold-meanders/epub/), [online](https://firstpair.org/read/arnold-meanders/));
+  source in [`paper/meanders.tex`](paper/meanders.tex).
+- **Visualization:** [firstpair.org/learn/arnold-meanders](https://firstpair.org/learn/arnold-meanders/)
+  (source [`viz/index.html`](viz/index.html)).
+- **Film:** a two-minute recording of the visualization, in the
+  [v1.0.0 release](https://github.com/querygraph/meander/releases/tag/v1.0.0).
+- **Blog post:** [`docs/blog/arnold-meanders/post.md`](docs/blog/arnold-meanders/post.md), for querygraph.ai.
 
 | File | Contents |
 |---|---|
