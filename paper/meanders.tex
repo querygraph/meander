@@ -1,5 +1,7 @@
 \documentclass[11pt]{amsart}
 \usepackage[margin=1.15in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
 \usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{tikz}
@@ -140,7 +142,8 @@ $\{P_k,P_{k+1}\}$ do not interleave. A permutation $\tau$ of $\{0,\dots,n-1\}$ i
 the number of open meanders.
 \end{definition}
 
-\noindent Figure~\ref{fig:spec} gives the specification in Lean, and Figure~\ref{fig:n4} shows the three open meanders with four crossings.
+\noindent Figure~\ref{fig:spec} gives the specification in Lean. Figure~\ref{fig:n4} shows the three open meanders with four
+crossings, and Figure~\ref{fig:n5}, on a page of its own, shows all eight with five.
 
 \begin{figure}[t]
 \begin{leancode}
@@ -162,32 +165,7 @@ the number of open meanders.
 
 \begin{figure}[t]
 \centering
-\begin{tikzpicture}[baseline=0pt]
-\fill[road] (-0.33,-0.07) rectangle (2.53,0.07);
-\draw[river] (0.000,-1.35) -- (0.000,0) arc (180:0:0.275) arc (180:360:0.275) arc (180:0:0.275) -- (1.650,-0.402) to[out=-90,in=180] (2.000,-0.575) -- (2.53,-0.575);
-\fill[bridge] (0.000,0) circle (0.055);
-\fill[bridge] (0.550,0) circle (0.055);
-\fill[bridge] (1.100,0) circle (0.055);
-\fill[bridge] (1.650,0) circle (0.055);
-\end{tikzpicture}
-\hspace{1.2em}
-\begin{tikzpicture}[baseline=0pt]
-\fill[road] (-0.33,-0.07) rectangle (2.53,0.07);
-\draw[river] (0.000,-1.35) -- (0.000,0) arc (180:0:0.825) arc (360:180:0.275) arc (0:180:0.275) -- (0.550,-0.402) to[out=-90,in=180] (0.900,-0.575) -- (2.53,-0.575);
-\fill[bridge] (0.000,0) circle (0.055);
-\fill[bridge] (0.550,0) circle (0.055);
-\fill[bridge] (1.100,0) circle (0.055);
-\fill[bridge] (1.650,0) circle (0.055);
-\end{tikzpicture}
-\hspace{1.2em}
-\begin{tikzpicture}[baseline=0pt]
-\fill[road] (-0.33,-0.07) rectangle (2.53,0.07);
-\draw[river] (1.100,-1.35) -- (1.100,0) arc (0:180:0.275) arc (360:180:0.275) arc (180:0:0.825) -- (1.650,-0.402) to[out=-90,in=180] (2.000,-0.575) -- (2.53,-0.575);
-\fill[bridge] (0.000,0) circle (0.055);
-\fill[bridge] (0.550,0) circle (0.055);
-\fill[bridge] (1.100,0) circle (0.055);
-\fill[bridge] (1.650,0) circle (0.055);
-\end{tikzpicture}
+\input{figs/n4-1}\hspace{1.2em}\input{figs/n4-2}\hspace{1.2em}\input{figs/n4-3}
 \caption{The three open meanders with $n=4$ crossings. The river enters from the south and
 leaves to the east; bridges are numbered $0$ to $3$ from west to east. Their crossing orders
 are $0123$, $0321$ and $2103$.}\label{fig:n4}
@@ -200,6 +178,21 @@ westmost bridge and leaves it into the upper half-plane. It is then a permutatio
 $\{0,\dots,2n-1\}$ with $\sigma(0)=0$ whose cyclic path has no crossing among its $2n$ arcs.
 We write $\Closed_n$ for their number.
 
+\begin{figure}[p]
+\centering
+\begin{tabular}{cc}
+\begin{tabular}{c}\scalebox{1.32}{\input{figs/n5-1}}\\[4pt] \small $01234$\end{tabular} & \begin{tabular}{c}\scalebox{1.32}{\input{figs/n5-2}}\\[4pt] \small $01432$\end{tabular} \\[30pt]
+\begin{tabular}{c}\scalebox{1.32}{\input{figs/n5-3}}\\[4pt] \small $03214$\end{tabular} & \begin{tabular}{c}\scalebox{1.32}{\input{figs/n5-4}}\\[4pt] \small $21034$\end{tabular} \\[30pt]
+\begin{tabular}{c}\scalebox{1.32}{\input{figs/n5-5}}\\[4pt] \small $23410$\end{tabular} & \begin{tabular}{c}\scalebox{1.32}{\input{figs/n5-6}}\\[4pt] \small $41230$\end{tabular} \\[30pt]
+\begin{tabular}{c}\scalebox{1.32}{\input{figs/n5-7}}\\[4pt] \small $43012$\end{tabular} & \begin{tabular}{c}\scalebox{1.32}{\input{figs/n5-8}}\\[4pt] \small $43210$\end{tabular} \\[30pt]
+\end{tabular}
+\caption{All eight open meanders with $n=5$ crossings, each labelled with its crossing order
+(the bridges crossed, in river order, numbered from west to east). The river enters from the
+south; since $n$ is odd, its last arc lies above the road and it leaves to the east above
+every other upper arc.}\label{fig:n5}
+\end{figure}
+
+\clearpage
 \section{Structural results}\label{sec:structure}
 
 \begin{theorem}\label{thm:basic}
@@ -364,7 +357,7 @@ piece of river: the list of points from its origin, through scanned points, to t
 its partner or to $E$. It also records the closed arcs. Forgetting the decorations gives back
 the transfer matrix exactly (lemma \code{step\_abs}), so decorated runs and plain runs accept
 the same sequences. The heart of the proof is an invariant with twenty conjuncts, preserved by
-each of the five kinds of step (open–open, open–close for either side, close–close, and the two
+each of the five kinds of step (open--open, open--close for either side, close--close, and the two
 moves at $E$). It states, among other things, that partners point to each other; that a piece
 is duplicate-free, begins at its arc's origin, and is the reverse of its partner's piece;
 that consecutive points of a piece are joined by recorded arcs; that pieces of different
@@ -441,20 +434,8 @@ Theorem~\ref{thm:tm} up to the correctness of compilation.
 
 \begin{figure}[t]
 \centering
-\begin{tikzpicture}[baseline=0pt]
-\fill[road] (-0.37,-0.07) rectangle (5.95,0.07);
-\draw[river] (2.480,-1.35) -- (2.480,0) arc (180:0:0.310) arc (180:360:0.310) arc (180:0:0.310) arc (180:360:0.310) arc (0:180:1.550) arc (360:180:0.310) arc (0:180:0.310) arc (360:180:0.310) -- (0.000,1.295) to[out=90,in=180] (0.350,1.850) -- (5.95,1.850);
-\fill[bridge] (0.000,0) circle (0.055);
-\fill[bridge] (0.620,0) circle (0.055);
-\fill[bridge] (1.240,0) circle (0.055);
-\fill[bridge] (1.860,0) circle (0.055);
-\fill[bridge] (2.480,0) circle (0.055);
-\fill[bridge] (3.100,0) circle (0.055);
-\fill[bridge] (3.720,0) circle (0.055);
-\fill[bridge] (4.340,0) circle (0.055);
-\fill[bridge] (4.960,0) circle (0.055);
-\end{tikzpicture}
-\caption{One of the $262$ open meanders with $n=9$ crossings.}\label{fig:n9}
+\input{figs/n9-138}
+\caption{One of the $262$ open meanders with $n=9$ crossings; its crossing order is $456783210$.}\label{fig:n9}
 \end{figure}
 
 \section{Discussion}

@@ -1,1 +1,8 @@
 /.lake
+
+# videos are published as GitHub release assets
+viz/*.mp4
+# LaTeX build products
+paper/*.aux
+paper/*.log
+paper/*.out
