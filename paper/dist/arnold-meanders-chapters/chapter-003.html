@@ -272,8 +272,8 @@ arcs. We write
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mi>n</mi></msub><annotation encoding="application/x-tex">\mathrm{M}_n</annotation></semantics></math>
 for the number of open meanders.</p>
 <p>Figure 1 gives the specification in Lean. Figure 2 shows the three
-open meanders with four crossings, and Figure 3, on a page of its own,
-shows all eight with five.</p>
+open meanders with four crossings, and Figure 3 shows all eight with
+five.</p>
 <figure id="fig:spec" data-latex-placement="t">
 <pre><code>def Interleave (a b c d : Nat) : Prop :=
   ¬ ((min a b &lt; c ∧ c &lt; max a b) ↔ (min a b &lt; d ∧ d &lt; max a b))
