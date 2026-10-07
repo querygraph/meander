@@ -209,13 +209,13 @@ times? Two rivers are considered the same if one can be deformed into
 the other without changing the order of the crossings along the road and
 along the river. The resulting numbers,
 <math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>1</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>1</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>2</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>3</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>8</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>14</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>42</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>81</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>262</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>538</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>1828</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>3926</mn><mo>,</mo><mspace width="0.222em"></mspace><mn>13820</mn><mo>,</mo><mspace width="0.222em"></mspace><mi>…</mi></mrow><annotation encoding="application/x-tex">1,\ 1,\ 1,\ 2,\ 3,\ 8,\ 14,\ 42,\ 81,\ 262,\ 538,\ 1828,\ 3926,\ 13820,\ \dots</annotation></semantics></math>
-form sequence A005316 of the OEIS [9]. The closely related count of
+form sequence A005316 of the OEIS [11]. The closely related count of
 closed curves crossing the line
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mi>n</mi></mrow><annotation encoding="application/x-tex">2n</annotation></semantics></math>
-times is A005315 [10]. Meanders appeared earlier in work on folding a
-strip of stamps [11], were studied systematically by Lando and
-Zvonkin [6], and became a test bed for exact enumeration and statistical
-physics [3, 4, 5].</p>
+times is A005315 [12]. Meanders appeared earlier in work on folding a
+strip of stamps [14], were studied systematically by Lando and
+Zvonkin [8], and became a test bed for exact enumeration and statistical
+physics [4, 5, 6].</p>
 <p>Despite this attention there is no closed formula. Di Francesco,
 Golinelli and Guitter conjectured from a conformal field theory argument
 that the number of closed meanders of order
@@ -225,7 +225,7 @@ grows like
 with
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>R</mi><mn>2</mn></msup><mo>≈</mo><mn>12.26</mn></mrow><annotation encoding="application/x-tex">R^2 \approx 12.26</annotation></semantics></math>
 and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mo>=</mo><mo stretchy="false" form="prefix">(</mo><mn>29</mn><mo>+</mo><msqrt><mn>145</mn></msqrt><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mn>12</mn></mrow><annotation encoding="application/x-tex">\alpha = (29+\sqrt{145})/12</annotation></semantics></math> [4].
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mo>=</mo><mo stretchy="false" form="prefix">(</mo><mn>29</mn><mo>+</mo><msqrt><mn>145</mn></msqrt><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mn>12</mn></mrow><annotation encoding="application/x-tex">\alpha = (29+\sqrt{145})/12</annotation></semantics></math> [5].
 Rigorous bounds on the growth rate are far apart: Albert and Paterson
 proved that the exponential growth constant
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>R</mi><mn>2</mn></msup><annotation encoding="application/x-tex">R^2</annotation></semantics></math>
@@ -234,11 +234,11 @@ lies between about
 and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>12.90</mn><annotation encoding="application/x-tex">12.90</annotation></semantics></math> [1].
 Every known value of the sequence comes from a computer program, and the
-best of these are intricate transfer-matrix codes [5].</p>
+best of these are intricate transfer-matrix codes [6].</p>
 <p>This paper asks a narrower question: can we compute meander numbers
 with programs whose correctness is machine-checked against the plain
-definition? We answer it in the Lean 4 proof assistant [7] with the
-mathlib library [8]. Our contributions are:</p>
+definition? We answer it in the Lean 4 proof assistant [9] with the
+mathlib library [10]. Our contributions are:</p>
 <ol type="1">
 <li><p>A formal specification of open meanders as permutations of the
 bridges satisfying a non-crossing condition, and of closed meanders
@@ -266,7 +266,7 @@ and computed by the verified transfer matrix up to
 matching the OEIS (Section 6).</p></li>
 </ol>
 <p>We do not claim new values of the sequence; larger values are
-known [5]. What is new is that the values we report come from programs
+known [6]. What is new is that the values we report come from programs
 proved correct for all
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>,
 and that the proofs expose the combinatorial facts that make the fast

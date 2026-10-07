@@ -215,12 +215,150 @@ argument becomes reasoning about lists. Making the abstract machine
 literally the decorated one with decorations forgotten
 (<code>step_abs</code>) means no separate refinement proof is
 needed.</p>
-<h2 class="unnumbered" id="limitations-and-further-work">7.2.
+<h2 class="unnumbered" id="sec:permutons">7.2. Meandric permutations and
+the conjectured scaling limit</h2>
+<p>The specification is a statement about permutations, and the same
+permutations appear in recent probability. Borga, Gwynne and Sun [3]
+attach to a closed meander its <em>meandric permutation</em>: number the
+crossings from west to east, and again in the order in which the river
+meets them; the permutation relates the two orders. Up to inversion and
+the choice of where and in which direction the river is started, this is
+the permutation
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>σ</mi><annotation encoding="application/x-tex">\sigma</annotation></semantics></math>
+of <code>IsClosedMeander</code>, and Rosenstiehl [13] had studied the
+same objects as planar permutations. The formalization therefore counts
+meandric permutations exactly, and Theorem 3.2 is a bijection between
+meandric permutations of size
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mi>n</mi></mrow><annotation encoding="application/x-tex">2n</annotation></semantics></math>
+and open meanders with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mi>n</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">2n-1</annotation></semantics></math>
+crossings.</p>
+<p>Borga, Gwynne and Sun conjecture that a uniform random meander,
+viewed as a planar map with two Hamiltonian paths (the road and the
+river), converges to a Liouville quantum gravity surface with matter
+central charge
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>−</mi><mn>4</mn></mrow><annotation encoding="application/x-tex">-4</annotation></semantics></math>,
+that is
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>γ</mi><mo>=</mo><msqrt><mrow><mo stretchy="false" form="prefix">(</mo><mn>17</mn><mo>−</mo><msqrt><mn>145</mn></msqrt><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mn>3</mn></mrow></msqrt><mo>≈</mo><mn>1.29</mn></mrow><annotation encoding="application/x-tex">\gamma = \sqrt{(17-\sqrt{145})/3} \approx 1.29</annotation></semantics></math>,
+decorated by two independent space-filling
+SLE<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi></mi><mn>8</mn></msub><annotation encoding="application/x-tex">_8</annotation></semantics></math>
+curves, and that the plots of uniform meandric permutations converge to
+the corresponding <em>meandric permuton</em>. They prove, among other
+things, that the longest increasing subsequence of permutations sampled
+from the permuton is sublinear. The conjecture is the probabilistic
+counterpart of the asymptotic formula of Di Francesco, Golinelli and
+Guitter [5],
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>M</mi><mi>n</mi></msub><mo>∼</mo><mi>C</mi><mspace width="0.167em"></mspace><msup><mi>A</mi><mi>n</mi></msup><mspace width="0.167em"></mspace><msup><mi>n</mi><mrow><mi>−</mi><mi>α</mi></mrow></msup><mo>,</mo><mspace width="2.0em"></mspace><mi>α</mi><mo>=</mo><mfrac><mrow><mn>29</mn><mo>+</mo><msqrt><mn>145</mn></msqrt></mrow><mn>12</mn></mfrac><mo>≈</mo><mn>3.4201</mn><mo>,</mo></mrow><annotation encoding="application/x-tex">M_n \sim C\, A^n\, n^{-\alpha}, \qquad \alpha = \frac{29+\sqrt{145}}{12} \approx 3.4201,</annotation></semantics></math>
+for the number
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>M</mi><mi>n</mi></msub><annotation encoding="application/x-tex">M_n</annotation></semantics></math>
+of closed meanders of order
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>,
+with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi><mo>≈</mo><mn>12.2629</mn></mrow><annotation encoding="application/x-tex">A \approx 12.2629</annotation></semantics></math>
+estimated by Jensen and Guttmann [6, 7].</p>
+<p>Exact counts test the exponent directly. With
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>
+fixed at that estimate,
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>α</mi><mi>n</mi></msub><mo>=</mo><mi>−</mi><mfrac><mrow><mrow><mi mathvariant="normal">log</mi><mo>&#8289;</mo></mrow><mo minsize="120%" maxsize="120%" stretchy="true" form="prefix">(</mo><msub><mi>M</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mi>/</mi><mo stretchy="false" form="prefix">(</mo><mi>A</mi><msub><mi>M</mi><mi>n</mi></msub><mo stretchy="false" form="postfix">)</mo><mo minsize="120%" maxsize="120%" stretchy="true" form="postfix">)</mo></mrow><mrow><mrow><mi mathvariant="normal">log</mi><mo>&#8289;</mo></mrow><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>+</mo><mn>1</mn><mi>/</mi><mi>n</mi><mo stretchy="false" form="postfix">)</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">\alpha_n = -\frac{\log\bigl(M_{n+1}/(A M_n)\bigr)}{\log(1 + 1/n)}</annotation></semantics></math>
+estimates
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>,
+with an error of order
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mi>/</mi><mi>n</mi></mrow><annotation encoding="application/x-tex">1/n</annotation></semantics></math>;
+extrapolating linearly in
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mi>/</mi><mi>n</mi></mrow><annotation encoding="application/x-tex">1/n</annotation></semantics></math>
+from
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>α</mi><mrow><mi>n</mi><mo>−</mo><mn>2</mn></mrow></msub><annotation encoding="application/x-tex">\alpha_{n-2}</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>α</mi><mi>n</mi></msub><annotation encoding="application/x-tex">\alpha_n</annotation></semantics></math>
+removes most of it. Table 3 uses
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>M</mi><mi>n</mi></msub><mo>=</mo><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">n</mi></mrow><mo stretchy="false" form="prefix">(</mo><mn>2</mn><mi>n</mi><mo>−</mo><mn>1</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">M_n = \mathrm{open}(2n-1)</annotation></semantics></math>
+(Theorem 3.2) with open counts up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>45</mn><annotation encoding="application/x-tex">45</annotation></semantics></math>
+crossings, computed by the transfer matrix of Section 5 run in the
+parallel programs described below. The extrapolated values increase
+steadily towards
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>3.4201</mn><annotation encoding="application/x-tex">3.4201</annotation></semantics></math>.
+This is numerical evidence for the conjectured exponent, not a proof,
+and it assumes the estimate of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>.</p>
+<table id="tab:exponent" style="width:74%;">
+<caption>Table 3. Estimates of the meander exponent
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+from exact counts of closed meanders, with the growth constant fixed at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi><mo>=</mo><mn>12.2629</mn></mrow><annotation encoding="application/x-tex">A = 12.2629</annotation></semantics></math>.</caption>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 22%" />
+<col style="width: 18%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math></th>
+<th
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>M</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mi>/</mi><msub><mi>M</mi><mi>n</mi></msub></mrow><annotation encoding="application/x-tex">M_{n+1}/M_n</annotation></semantics></math></th>
+<th
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>α</mi><mi>n</mi></msub><annotation encoding="application/x-tex">\alpha_n</annotation></semantics></math></th>
+<th style="text-align: right;">extrapolated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">9.4415</td>
+<td style="text-align: right;">3.2665</td>
+<td style="text-align: right;">3.4053</td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td style="text-align: right;">9.7747</td>
+<td style="text-align: right;">3.2870</td>
+<td style="text-align: right;">3.4100</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">10.0377</td>
+<td style="text-align: right;">3.3027</td>
+<td style="text-align: right;">3.4129</td>
+</tr>
+<tr>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">10.2506</td>
+<td style="text-align: right;">3.3152</td>
+<td style="text-align: right;">3.4149</td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">10.4263</td>
+<td style="text-align: right;">3.3253</td>
+<td style="text-align: right;">3.4163</td>
+</tr>
+<tr>
+<td style="text-align: right;">22</td>
+<td style="text-align: right;">10.5739</td>
+<td style="text-align: right;">3.3337</td>
+<td style="text-align: right;">3.4172</td>
+</tr>
+<tr>
+<td colspan="3" style="text-align: right;">conjecture [5]</td>
+<td style="text-align: right;">3.4201</td>
+</tr>
+</tbody>
+</table>
+<h2 class="unnumbered" id="limitations-and-further-work">7.3.
 Limitations and further work</h2>
-<p>Our transfer matrix is far from the state of the art. Jensen’s
-algorithm [5] encodes states more compactly and enumerates well beyond
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>32</mn></mrow><annotation encoding="application/x-tex">n=32</annotation></semantics></math>;
-verifying such an encoding is a natural next step, and the generic
+<p>Our verified transfer matrix is far from the state of the art.
+Jensen’s algorithm [6] encodes states more compactly and enumerates well
+beyond
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>32</mn></mrow><annotation encoding="application/x-tex">n=32</annotation></semantics></math>.
+The repository also contains two unverified programs, in Rust and in
+OxCaml, that run the same machine with each state packed into one
+machine word (reading the open arcs along the cut, they form a
+non-crossing matching, a bracket word) and every layer spread over all
+cores. They reproduce the published values up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>48</mn></mrow><annotation encoding="application/x-tex">n = 48</annotation></semantics></math>.
+Verifying such an encoding is a natural next step, and the generic
 counting theorem already accepts any merge procedure that preserves
 weighted sums. A second direction is to formalize the rigorous
 growth-rate bounds of Albert and Paterson [1], which would make our
