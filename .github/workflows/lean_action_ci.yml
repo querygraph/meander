@@ -20,4 +20,4 @@ jobs:
       - uses: leanprover/lean-action@v1
       - uses: leanprover-community/docgen-action@v1
         with:
-          ruby-version: default # read docs/.ruby-version
+          ruby-version: "3.4.11" # must match docs/.ruby-version and docs/Gemfile
