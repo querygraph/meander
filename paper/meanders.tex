@@ -459,7 +459,9 @@ the others run the same machine and are checked against the certified values and
     leads to the east end, plus the number of arcs above the road, and fits in 64 bits for
     $n \le 52$. Each layer is split into 4096 hash shards, each an open-addressing table behind
     its own lock; worker threads claim source shards, batch successors per target shard, and
-    free each source shard once read, so memory holds about one layer. Counts are kept modulo
+    free each source shard once read, so memory holds about one layer. Tables grow on demand, or,
+with an option, are allocated once at a size predicted from the previous layers' growth. Counts
+are kept modulo
     $2^{64}$ and, from $n = 44$, also modulo $2^{61}-1$, and recovered by the Chinese
     remainder theorem.
   \item \emph{OxCaml} (\code{oxcaml/}). The same algorithm in OxCaml, Jane Street's extension of
@@ -484,31 +486,44 @@ equals the OEIS term; in particular
 \]
 Memory is the limit: the largest layer for $n = 50$ holds $2.25 \times 10^9$ states, and $n = 50$
 is the largest value that fits in 128~GB, at about 35 bytes per state. Table~\ref{tab:scaling}
-shows that both programs scale to the physical cores and no further, as expected for work
-dominated by random memory access. On one thread the two are equally fast; OxCaml scales
-better, probably because it pre-sizes each layer's tables so that a shard rarely grows while
-its lock is held, at the cost of more memory. The teaching implementations are far slower:
+shows that the programs scale to the physical cores and no further, as expected for work
+dominated by random memory access.
+
+The OxCaml program is faster than the Rust program in its default mode, and the difference is
+one design choice. By default Rust grows each shard's table by half when it is 80\% full, so
+every state is moved several times as its table grows; OxCaml predicts each layer's size from
+the growth of the previous layers and allocates every table once. With the same prediction
+(Rust's pre-sizing option), Rust is 20--28\% faster at every thread count, including one, so the
+saving is the rehashing work itself rather than time spent waiting on locks. Pre-sized Rust is
+then the fastest program for $n \ge 44$ and on a single thread; OxCaml keeps an edge for small
+$n$ on many threads, plausibly because it keeps one pool of workers and their buffers for the
+whole run, while Rust starts its threads and allocates their batch buffers for every point.
+Pre-sizing costs memory, since each table is allocated at its final size while the previous
+layer is still draining (17.0 against 12.6\,GiB at $n = 46$); OxCaml needs more still
+(20.5\,GiB), because its freed tables are returned only after a major garbage collection. Rust
+grows on demand by default, so that the largest $n$ fits in memory. The teaching implementations are far slower:
 interpreted Python computes all values up to $n = 30$ in about twelve seconds on the laptop, and the OCaml
 notebook's transfer matrix, run as bytecode on ten domains, takes about half a second for
 $n = 28$.
 
 \begin{table}[t]
 \centering
-\begin{tabular}{rrrrr}
+\begin{tabular}{rrrrrr}
 \toprule
-$n$ & $\Open_n$ & largest layer & Rust & OxCaml \\
+$n$ & $\Open_n$ & largest layer & Rust & pre-sized & OxCaml \\
 \midrule
-40 & $1.66 \times 10^{17}$ & $2.2 \times 10^{7}$ & 3.3\,s & 2.3\,s \\
-42 & $1.73 \times 10^{18}$ & $5.7 \times 10^{7}$ & 6.1\,s & 5.3\,s \\
-44 & $1.83 \times 10^{19}$ & $1.4 \times 10^{8}$ & 30\,s & 25\,s \\
-46 & $1.94 \times 10^{20}$ & $3.5 \times 10^{8}$ & 79\,s & 62\,s \\
-49 & $8.50 \times 10^{21}$ & $1.4 \times 10^{9}$ & 516\,s & \\
-50 & $2.22 \times 10^{22}$ & $2.3 \times 10^{9}$ & 1052\,s & \\
+40 & $1.66 \times 10^{17}$ & $2.2 \times 10^{7}$ & 3.6\,s & 2.9\,s & 2.2\,s \\
+42 & $1.73 \times 10^{18}$ & $5.7 \times 10^{7}$ & 6.1\,s & 5.3\,s & 5.3\,s \\
+44 & $1.83 \times 10^{19}$ & $1.4 \times 10^{8}$ & 30\,s & 22\,s & 25\,s \\
+46 & $1.94 \times 10^{20}$ & $3.5 \times 10^{8}$ & 80\,s & 57\,s & 65\,s \\
+49 & $8.50 \times 10^{21}$ & $1.4 \times 10^{9}$ & 516\,s & & \\
+50 & $2.22 \times 10^{22}$ & $2.3 \times 10^{9}$ & 1052\,s & & \\
 \bottomrule
 \end{tabular}
-\caption{The parallel programs on 36 threads of an 18-core Xeon with 128\,GB. From $n = 44$ a
-value takes two sweeps. Peak memory at $n = 46$: 13.6\,GB (Rust), 22.9\,GB (OxCaml); at
-$n = 50$: 79\,GB (Rust).}\label{tab:fast}
+\caption{The parallel programs on 36 threads of an 18-core Xeon with 128\,GB, interleaved runs
+(Rust with tables grown on demand, Rust with pre-sized tables, OxCaml). From $n = 44$ a value
+takes two sweeps. Peak memory at $n = 46$: 12.6, 17.0 and 20.5\,GiB; at $n = 50$: 74\,GiB
+(Rust).}\label{tab:fast}
 \end{table}
 
 \begin{table}[t]
@@ -517,8 +532,9 @@ $n = 50$: 79\,GB (Rust).}\label{tab:fast}
 \toprule
 threads & 1 & 4 & 9 & 18 & 36 \\
 \midrule
-Rust   & 20.1\,s & 5.9\,s & 3.4\,s & 2.9\,s & 3.2\,s \\
-OxCaml & 20.2\,s & 5.5\,s & 2.8\,s & 2.2\,s & 2.2\,s \\
+Rust            & 21.3\,s & 6.1\,s & 3.5\,s & 3.0\,s & 3.3\,s \\
+Rust, pre-sized & 17.0\,s & 4.8\,s & 2.8\,s & 2.4\,s & 2.9\,s \\
+OxCaml          & 20.4\,s & 5.6\,s & 2.8\,s & 2.2\,s & 2.3\,s \\
 \bottomrule
 \end{tabular}
 \caption{Scaling with threads for $n = 40$ on the same machine.}\label{tab:scaling}
