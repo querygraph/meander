@@ -30,8 +30,8 @@ MEM=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
 T=${THREADS:-$CORES}
 {
   echo "# host=$HOST cpu=$CPU logical_cpus=$CORES memory_gb=$MEM threads=$T date=$(date -u +%FT%TZ)"
-  echo "# git=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo none)"
-  printf "impl\tn\tcount\toeis\tpeak_states\tseconds\tmax_rss_gb\n"
+  echo "# git=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo none) (the commit of the checkout running this script)"
+  printf "impl\tn\tcount\toeis\tpeak_states\tseconds\tmax_rss_gib\n"
 } > "$OUT"
 
 expected() { awk -v n="$1" '!/^#/ && $1 == n { print $2 }' "$ROOT/bench/oeis-a005316.txt"; }

@@ -1,0 +1,5 @@
+# host=morrobay cpu=Intel(R) Xeon(R) W-2191B CPU @ 2.30GHz logical_cpus=36 memory_gb=128 threads=36
+# meanders-rs N --from N, two sweeps (mod 2^64 and mod 2^61-1); git=04bbda2 tree
+impl	n	count	oeis	peak_states	total_states	seconds	max_rss_gib	start_utc	end_utc
+rust	49	8499066628515413229282	ok	1415496980	6572726539	516.436	48.01	2026-10-07T23:14:33Z	2026-10-07T23:23:10Z
+rust	50	22206891674746169557410	ok	2252446749	10418198039	1052.294	73.77	2026-10-07T23:23:10Z	2026-10-07T23:40:42Z

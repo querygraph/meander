@@ -1,0 +1,5 @@
+# host=morrobay cpu=Intel(R) Xeon(R) W-2191B CPU @ 2.30GHz logical_cpus=36 memory_gb=128 threads=1 date=2026-10-08T00:50:42Z
+# code: rust/, oxcaml/ and bench/ at commit 04bbda2, synced to the machine; Lean meanders built from querygraph/meander
+impl	n	count	oeis	peak_states	seconds	max_rss_gib
+rust	40	165597452660771610	ok	22007687	20.14	1.57
+oxcaml	40	165597452660771610	ok	22007687	20.20	1.38

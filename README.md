@@ -89,22 +89,34 @@ with its own lock. Counts beyond 64 bits come from two sweeps, modulo `2^64` (or
 `2^61 - 1`, joined by the Chinese remainder theorem. Every count is checked against the values
 certified in Lean and against the OEIS; [`bench/run.sh`](bench/run.sh) runs the benchmarks.
 
-Largest values so far, each equal to the OEIS term. These ran on an Apple M1 Max (10 cores,
-64 GB) while other jobs were running, so the times are indicative; timed runs on an 18-core,
-128 GB machine are recorded in [`bench/results/`](bench/results/).
+Timed runs on an Intel Xeon W-2191B (18 cores, 36 threads, 128 GB), one `n` per process, all
+36 threads; every count equals the OEIS term. Raw results are in [`bench/results/`](bench/results/).
 
-| n | open meanders | largest layer (states) | Rust, 10 threads |
-|---|---|---|---|
-| 44 | 18,276,178,714,484,582,264 | 142,200,409 | 83 s |
-| 45 | 74,661,728,661,167,809,752 | 223,196,394 | 244 s |
-| 46 | 193,909,492,888,406,631,692 | 349,363,805 | 464 s |
-| 47 | 794,337,831,754,570,367,812 | 568,622,062 | 990 s |
-| 48 | 2,069,504,277,256,274,074,724 | 872,527,061 | 3,400 s, 22.8 GB |
+| n | open meanders | largest layer (states) | Rust | OxCaml |
+|---|---|---|---|---|
+| 40 | 165,597,452,660,771,610 | 22,007,687 | 3.3 s | 2.3 s |
+| 42 | 1,733,609,081,727,968,492 | 56,637,978 | 6.1 s | 5.3 s |
+| 44 | 18,276,178,714,484,582,264 | 142,200,409 | 30 s | 25 s |
+| 46 | 193,909,492,888,406,631,692 | 349,363,805 | 79 s, 13.6 GB | 62 s, 22.9 GB |
+| 49 | 8,499,066,628,515,413,229,282 | 1,415,496,980 | 516 s, 51.6 GB | |
+| 50 | 22,206,891,674,746,169,557,410 | 2,252,446,749 | 1,052 s, 79.2 GB | |
 
-On the same laptop, the OxCaml program, written with OxCaml's data-race-free `Parallel`
-scheduler and capsules, matches the Rust program's wall time for n = 38 to 42 (for example 3.3 s
-against 3.6 s at n = 40), with somewhat more memory; see [`oxcaml/README.md`](oxcaml/README.md).
-The verified Lean program takes 93 s for n = 32, which Rust does in 0.25 s.
+From `n = 44` on, a count takes two sweeps (two moduli). Memory is the limit: `n = 50` is the
+largest that fits in 128 GB, at about 35 bytes per state of the largest layer. On the same
+machine the verified Lean program `meanders` takes 160 s for all `n ≤ 32`.
+
+Both programs scale to the physical cores and no further (`n = 40`):
+
+| threads | 1 | 4 | 9 | 18 | 36 |
+|---|---|---|---|---|---|
+| Rust | 20.1 s | 5.9 s | 3.4 s | 2.9 s | 3.2 s |
+| OxCaml | 20.2 s | 5.5 s | 2.8 s | 2.2 s | 2.2 s |
+
+OxCaml is written with OxCaml's data-race-free `Parallel` scheduler and capsules. On one thread
+the two programs are equally fast; OxCaml scales better, probably because it pre-sizes each
+layer's tables from the previous layers, so a shard rarely rehashes while its lock is held. It
+needs more memory. Details are in
+[`rust/README.md`](rust/README.md) and [`oxcaml/README.md`](oxcaml/README.md).
 
 ## Related work
 
