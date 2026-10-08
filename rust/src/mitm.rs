@@ -16,7 +16,8 @@
 
 use crate::ooc::{SHARDS, Table, hash, shard_of};
 use crate::state::{CLOSE, INIT, OPEN, Word, encode};
-use crate::word::{Key64 as Key, narrow, successors, widen};
+use crate::bits::Key;
+use crate::word::successors;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -110,8 +111,8 @@ fn finishers(p: usize) -> Vec<(Key, u128)> {
     let mut w = [0u8; 64];
     w[0] = OPEN;
     w[1] = CLOSE;
-    let pair = narrow(encode(&Word { w, len: 2, h: p }));
-    if p == 0 { vec![(pair, 1), (narrow(INIT), 1)] } else { vec![(pair, 1)] }
+    let pair = crate::bits::from_state(encode(&Word { w, len: 2, h: p }));
+    if p == 0 { vec![(pair, 1), (crate::bits::from_state(INIT), 1)] } else { vec![(pair, 1)] }
 }
 
 pub struct Row {
@@ -127,9 +128,9 @@ pub struct Row {
 pub fn run(horizon: usize, threads: usize, mut report: impl FnMut(&Row)) {
     let kmax = horizon - horizon / 2;
     // Forward layers: small, kept for the whole run.
-    let mut fwd: Vec<Layer> = vec![singleton(&[(narrow(INIT), 1)])];
+    let mut fwd: Vec<Layer> = vec![singleton(&[(crate::bits::from_state(INIT), 1)])];
     let bridge = |k: Key, emit: &mut dyn FnMut(Key)| {
-        successors(NO_TARGET, 0, widen(k), |k2| emit(narrow(k2)));
+        successors(NO_TARGET, 0, crate::bits::to_state(k), |k2| emit(crate::bits::from_state(k2)));
     };
     for _ in 0..kmax {
         let copy: Layer = fwd

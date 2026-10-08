@@ -1,7 +1,13 @@
-//! Backward steps on the packed 64-bit state, for words without `E`.
+//! The meet-in-the-middle key, and backward steps on it.
 //!
-//! The key (see `word::narrow`) is `h << 59 | 63 << 53 | 1 << len | brackets`, with bracket `i`
-//! at bit `i` (`1 = (`, `0 = )`). Everything here works on those bits directly, with no decoding:
+//! The states of the meet-in-the-middle layers never contain `E` (forward layers come before the
+//! east end, and backward states are what the east end will finish), so their key needs no field
+//! for its position: `h << 59 | 1 << len | brackets`, with bracket `i` at bit `i` (`1 = (`,
+//! `0 = )`) under a sentinel. That fits words of up to 58 brackets, enough for every horizon up to
+//! 58 (the forward layer after `k` bridges has words of up to `2k` brackets). `from_state` and
+//! `to_state` convert to and from the two-bit working form in constant time.
+//!
+//! Everything else here works on those bits directly, with no decoding:
 //!
 //! * `depth = len − bal(h)`, where `bal(h) = 2·popcount(brackets below bit h) − h` is the excess
 //!   of `(` left of the cut (`state::depth`).
@@ -14,8 +20,7 @@
 
 pub type Key = u64;
 
-const NO_END: u64 = 63;
-const BITS: u64 = (1 << 53) - 1;
+const BITS: u64 = (1 << 59) - 1;
 
 #[inline(always)]
 fn parts(k: Key) -> (u64, usize, usize) {
@@ -27,8 +32,28 @@ fn parts(k: Key) -> (u64, usize, usize) {
 
 #[inline(always)]
 fn make(b: u64, len: usize, h: usize) -> Key {
-    debug_assert!(len <= 52 && h < 32);
-    ((h as u64) << 59) | (NO_END << 53) | (1 << len) | b
+    assert!(len <= 58 && h < 32, "a state does not fit in the 64-bit key");
+    ((h as u64) << 59) | (1 << len) | b
+}
+
+/// The key of a state given in the two-bit form of `word.rs` (which must contain no `E`).
+#[inline(always)]
+pub fn from_state(k: crate::state::Key) -> Key {
+    use crate::word::{EVEN, H_SHIFT, WORD_MASK, compact, len};
+    let h = (k >> H_SHIFT) as usize;
+    let b = k & WORD_MASK;
+    debug_assert!(b & (b >> 1) & EVEN == 0, "a meet-in-the-middle state has no E");
+    let n = len(b);
+    make(compact(b), n, h)
+}
+
+/// The two-bit form of a key.
+#[inline(always)]
+pub fn to_state(k: Key) -> crate::state::Key {
+    use crate::word::{EVEN, H_SHIFT, low, spread};
+    let (b, n, h) = parts(k);
+    let w = (low(u128::MAX, n) & (EVEN << 1)) - spread(b);
+    w | ((h as u128) << H_SHIFT)
 }
 
 #[inline(always)]

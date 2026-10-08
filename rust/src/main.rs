@@ -187,7 +187,6 @@ mod tests {
     #[test]
     fn packed_predecessors_match_reference() {
         use crate::state::{Word, decode, depth, encode, predecessors};
-        use crate::word::narrow;
         use std::collections::BTreeSet;
         let mut layer = vec![crate::state::INIT];
         let mut all = BTreeSet::new();
@@ -203,20 +202,21 @@ mod tests {
         }
         for &k in &all {
             let w = decode(k);
-            assert_eq!(crate::bits::depth(narrow(k)), depth(&w));
+            assert_eq!(crate::bits::depth(crate::bits::from_state(k)), depth(&w));
+            assert_eq!(crate::bits::to_state(crate::bits::from_state(k)), k);
             let mut want = BTreeSet::new();
             predecessors(&w, |t: Word| {
-                want.insert(narrow(encode(&t)));
+                want.insert(crate::bits::from_state(encode(&t)));
             });
             let mut got = BTreeSet::new();
-            crate::bits::predecessors(narrow(k), usize::MAX, |t| {
+            crate::bits::predecessors(crate::bits::from_state(k), usize::MAX, |t| {
                 assert!(got.insert(t), "duplicate predecessor");
             });
-            assert_eq!(got.iter().map(|&t| crate::word::widen(t)).collect::<Vec<_>>(), want.iter().map(|&t| crate::word::widen(t)).collect::<Vec<_>>(), "predecessors of {k:#x} (as u128 keys)");
+            assert_eq!(got, want, "predecessors of {k:#x}");
             // the depth bound filters exactly
             let bound = depth(&w);
             let mut kept = BTreeSet::new();
-            crate::bits::predecessors(narrow(k), bound, |t| {
+            crate::bits::predecessors(crate::bits::from_state(k), bound, |t| {
                 kept.insert(t);
             });
             let expect: BTreeSet<_> =
@@ -299,6 +299,34 @@ mod tests {
             std::fs::read_to_string(b.join("values")).unwrap()
         );
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// The meet-in-the-middle key holds words of up to 58 brackets.
+    #[test]
+    fn mitm_key_round_trips_long_words() {
+        use crate::state::{CLOSE, OPEN, Word, encode};
+        let mut seed = 0x2545_F491_4F6C_DD1Du64;
+        for _ in 0..20_000 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            // a random balanced word of length 2·(1..=29), and a cut
+            let pairs = 1 + (seed % 29) as usize;
+            let mut w = [0u8; 64];
+            let (mut open, mut closed, mut i, mut r) = (0, 0, 0, seed);
+            while closed < pairs {
+                r = r.rotate_left(7) ^ 0x9E37_79B9;
+                let can_open = open < pairs;
+                let can_close = closed < open;
+                let take_open = can_open && (!can_close || r & 1 == 1);
+                w[i] = if take_open { OPEN } else { CLOSE };
+                if take_open { open += 1 } else { closed += 1 }
+                i += 1;
+            }
+            let h = ((seed >> 8) as usize % (2 * pairs + 1)).min(31);
+            let k = encode(&Word { w, len: 2 * pairs, h });
+            assert_eq!(crate::bits::to_state(crate::bits::from_state(k)), k);
+        }
     }
 
     #[test]

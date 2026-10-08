@@ -15,7 +15,8 @@
 
 use crate::state::{CLOSE, INIT, OPEN, Word, encode};
 use crate::store::{self, Layer};
-use crate::word::{Key64 as Key, narrow, successors, widen};
+use crate::bits::Key;
+use crate::word::successors;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -111,8 +112,8 @@ fn finishers(p: usize) -> Vec<(Key, u128)> {
     let mut w = [0u8; 64];
     w[0] = OPEN;
     w[1] = CLOSE;
-    let pair = narrow(encode(&Word { w, len: 2, h: p }));
-    if p == 0 { vec![(pair, 1), (narrow(INIT), 1)] } else { vec![(pair, 1)] }
+    let pair = crate::bits::from_state(encode(&Word { w, len: 2, h: p }));
+    if p == 0 { vec![(pair, 1), (crate::bits::from_state(INIT), 1)] } else { vec![(pair, 1)] }
 }
 
 /// How a run treats its layers and the disk.
@@ -180,10 +181,10 @@ pub fn extend(root: &Path, target: usize, opt: Options, out: &mut dyn FnMut(&str
     // Forward layers: universal, one segment each.
     let kmax = target - target / 2;
     if m.kmax == 0 && !fdir(root, 0).exists() {
-        store::write_states(&fdir(root, 0), 0, &[(narrow(INIT), 1)]);
+        store::write_states(&fdir(root, 0), 0, &[(crate::bits::from_state(INIT), 1)]);
     }
     let bridge = |k: Key, emit: &mut dyn FnMut(Key)| {
-        successors(NO_TARGET, 0, widen(k), |k2| emit(narrow(k2)));
+        successors(NO_TARGET, 0, crate::bits::to_state(k), |k2| emit(crate::bits::from_state(k2)));
     };
     while m.kmax < kmax {
         if pause_requested(root, &opt, out) {

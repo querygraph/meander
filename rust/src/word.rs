@@ -3,8 +3,8 @@
 
 use crate::state::{CLOSE, END, Key, OPEN, cap};
 
-const H_SHIFT: u32 = 122;
-const WORD_MASK: u128 = (1u128 << H_SHIFT) - 1;
+pub(crate) const H_SHIFT: u32 = 122;
+pub(crate) const WORD_MASK: u128 = (1u128 << H_SHIFT) - 1;
 
 #[inline(always)]
 fn get(b: u128, i: usize) -> u8 {
@@ -17,7 +17,7 @@ fn set(b: u128, i: usize, c: u8) -> u128 {
 }
 
 #[inline(always)]
-fn low(b: u128, i: usize) -> u128 {
+pub(crate) fn low(b: u128, i: usize) -> u128 {
     if i == 0 { 0 } else { b & (u128::MAX >> (128 - 2 * i)) }
 }
 
@@ -32,7 +32,7 @@ fn remove(b: u128, i: usize) -> u128 {
 }
 
 #[inline(always)]
-fn len(b: u128) -> usize {
+pub(crate) fn len(b: u128) -> usize {
     (129 - b.leading_zeros() as usize) / 2
 }
 
@@ -127,7 +127,7 @@ const NO_END: u64 = 63;
 
 /// Spread the bits of `x` to the even bit positions of a `u128` (bit `i` to bit `2i`).
 #[inline(always)]
-fn spread(x: u64) -> u128 {
+pub(crate) fn spread(x: u64) -> u128 {
     let mut x = x as u128;
     x = (x | (x << 32)) & 0x0000_0000_FFFF_FFFF_0000_0000_FFFF_FFFF;
     x = (x | (x << 16)) & 0x0000_FFFF_0000_FFFF_0000_FFFF_0000_FFFF;
@@ -139,7 +139,7 @@ fn spread(x: u64) -> u128 {
 
 /// The inverse of `spread`: gather the even bits of `x`.
 #[inline(always)]
-fn compact(x: u128) -> u64 {
+pub(crate) fn compact(x: u128) -> u64 {
     let mut x = x & 0x5555_5555_5555_5555_5555_5555_5555_5555;
     x = (x | (x >> 1)) & 0x3333_3333_3333_3333_3333_3333_3333_3333;
     x = (x | (x >> 2)) & 0x0F0F_0F0F_0F0F_0F0F_0F0F_0F0F_0F0F_0F0F;
@@ -149,7 +149,7 @@ fn compact(x: u128) -> u64 {
     (x | (x >> 32)) as u64
 }
 
-const EVEN: u128 = 0x5555_5555_5555_5555_5555_5555_5555_5555;
+pub(crate) const EVEN: u128 = 0x5555_5555_5555_5555_5555_5555_5555_5555;
 
 /// Pack a state into 64 bits, in constant time. A field holds `( = 01`, `) = 10`, `E = 11`, so
 /// the low bit of a field is set for `(` and `E`, and both bits only for `E`.
