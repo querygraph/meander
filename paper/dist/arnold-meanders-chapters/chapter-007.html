@@ -5,7 +5,7 @@
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Alexy Khrabrov" />
-  <meta name="dcterms.date" content="2026-10-07" />
+  <meta name="dcterms.date" content="2026-10-08" />
   <title>6. Certified values and performance</title>
   <style>
     div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
@@ -290,5 +290,184 @@ with <span class="math inline"><em>n</em> = 9</span> crossings; its
 crossing order is <span class="math inline">456783210</span>.
 </figcaption>
 </figure>
+<h2 class="unnumbered" id="sec:implementations">6.1. All
+implementations</h2>
+<p>The repository contains the algorithms in five languages. Only the
+Lean programs are verified; the others run the same machine and are
+checked against the certified values and the OEIS.</p>
+<ul>
+<li><p><em>Lean.</em> The specification (evaluable by brute force for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>6</mn></mrow><annotation encoding="application/x-tex">n \le 6</annotation></semantics></math>),
+the search <code>meanderCount</code> with its array implementation
+substituted by <code>csimp</code>, and the transfer matrix in two
+variants: <code>tmCount</code>, compiled into the executable
+<code>meanders</code>, and <code>tmCountK</code>, evaluated by the
+kernel.</p></li>
+<li><p><em>Rust</em> (<code>rust/</code>). The transfer matrix with a
+packed state. Read along the cut from top to bottom, the open arcs pair
+up like brackets, because the pieces of river west of the cut never
+cross. So a state is a bracket word with at most one marker for the arc
+that leads to the east end, plus the number of arcs above the road, and
+fits in 64 bits for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>52</mn></mrow><annotation encoding="application/x-tex">n \le 52</annotation></semantics></math>.
+Each layer is split into 4096 hash shards, each an open-addressing table
+behind its own lock; worker threads claim source shards, batch
+successors per target shard, and free each source shard once read, so
+memory holds about one layer. Counts are kept modulo
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mn>2</mn><mn>64</mn></msup><annotation encoding="application/x-tex">2^{64}</annotation></semantics></math>
+and, from
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>44</mn></mrow><annotation encoding="application/x-tex">n = 44</annotation></semantics></math>,
+also modulo
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mn>2</mn><mn>61</mn></msup><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">2^{61}-1</annotation></semantics></math>,
+and recovered by the Chinese remainder theorem.</p></li>
+<li><p><em>OxCaml</em> (<code>oxcaml/</code>). The same algorithm in
+OxCaml, Jane Street’s extension of OCaml. Workers run under OxCaml’s
+<code>Parallel</code> scheduler, shards are capsules guarded by mutexes,
+and the compiler’s mode system rules out data races. The state is an
+immediate 63-bit integer, the hot loop allocates nothing on the heap,
+and tables are flat arrays of unboxed values that the garbage collector
+never scans.</p></li>
+<li><p><em>Python and OCaml.</em> Companion notebooks teach each
+language by building the specification, the parity search and the
+transfer matrix from scratch, with the state as a string or a list of
+constructors and layers in hash tables, run on all cores with process
+pools (Python) and domains (OCaml 5). A third notebook teaches Lean with
+the library’s own declarations.</p></li>
+</ul>
+<p>Table 3 times the parallel programs on a workstation with an 18-core
+Intel Xeon W-2191B (36 threads) and 128 GB of memory, one value per run
+on all threads; on the same machine the verified <code>meanders</code>
+computes all values up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>32</mn></mrow><annotation encoding="application/x-tex">n=32</annotation></semantics></math>
+in 160 s. Every count equals the OEIS term; in particular
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi mathvariant="normal">M</mi><mn>49</mn></msub><mo>=</mo><mn>8</mn><mo>,</mo><mn>499</mn><mo>,</mo><mn>066</mn><mo>,</mo><mn>628</mn><mo>,</mo><mn>515</mn><mo>,</mo><mn>413</mn><mo>,</mo><mn>229</mn><mo>,</mo><mn>282</mn><mo>,</mo><mspace width="2.0em"></mspace><msub><mi mathvariant="normal">M</mi><mn>50</mn></msub><mo>=</mo><mn>22</mn><mo>,</mo><mn>206</mn><mo>,</mo><mn>891</mn><mo>,</mo><mn>674</mn><mo>,</mo><mn>746</mn><mo>,</mo><mn>169</mn><mo>,</mo><mn>557</mn><mo>,</mo><mn>410</mn><mi>.</mi></mrow><annotation encoding="application/x-tex">\mathrm{M}_{49} = 8{,}499{,}066{,}628{,}515{,}413{,}229{,}282, \qquad
+  \mathrm{M}_{50} = 22{,}206{,}891{,}674{,}746{,}169{,}557{,}410.</annotation></semantics></math>
+Memory is the limit: the largest layer for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>
+holds
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2.25</mn><mo>×</mo><msup><mn>10</mn><mn>9</mn></msup></mrow><annotation encoding="application/x-tex">2.25 \times 10^9</annotation></semantics></math>
+states, and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>
+is the largest value that fits in 128 GB, at about 35 bytes per state.
+Table 4 shows that both programs scale to the physical cores and no
+further, as expected for work dominated by random memory access. On one
+thread the two are equally fast; OxCaml scales better, probably because
+it pre-sizes each layer’s tables so that a shard rarely grows while its
+lock is held, at the cost of more memory. The teaching implementations
+are far slower: interpreted Python computes all values up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>30</mn></mrow><annotation encoding="application/x-tex">n = 30</annotation></semantics></math>
+in about twelve seconds on the laptop, and the OCaml notebook’s transfer
+matrix, run as bytecode on ten domains, takes about half a second for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>28</mn></mrow><annotation encoding="application/x-tex">n = 28</annotation></semantics></math>.</p>
+<table id="tab:fast">
+<caption>Table 3. The parallel programs on 36 threads of an 18-core Xeon
+with 128 GB. From
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>44</mn></mrow><annotation encoding="application/x-tex">n = 44</annotation></semantics></math>
+a value takes two sweeps. Peak memory at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>46</mn></mrow><annotation encoding="application/x-tex">n = 46</annotation></semantics></math>:
+13.6 GB (Rust), 22.9 GB (OxCaml); at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>:
+79 GB (Rust).</caption>
+<thead>
+<tr>
+<th
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math></th>
+<th
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mi>n</mi></msub><annotation encoding="application/x-tex">\mathrm{M}_n</annotation></semantics></math></th>
+<th style="text-align: right;">largest layer</th>
+<th style="text-align: right;">Rust</th>
+<th style="text-align: right;">OxCaml</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">40</td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1.66</mn><mo>×</mo><msup><mn>10</mn><mn>17</mn></msup></mrow><annotation encoding="application/x-tex">1.66 \times 10^{17}</annotation></semantics></math></td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2.2</mn><mo>×</mo><msup><mn>10</mn><mn>7</mn></msup></mrow><annotation encoding="application/x-tex">2.2 \times 10^{7}</annotation></semantics></math></td>
+<td style="text-align: right;">3.3 s</td>
+<td style="text-align: right;">2.3 s</td>
+</tr>
+<tr>
+<td style="text-align: right;">42</td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1.73</mn><mo>×</mo><msup><mn>10</mn><mn>18</mn></msup></mrow><annotation encoding="application/x-tex">1.73 \times 10^{18}</annotation></semantics></math></td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>5.7</mn><mo>×</mo><msup><mn>10</mn><mn>7</mn></msup></mrow><annotation encoding="application/x-tex">5.7 \times 10^{7}</annotation></semantics></math></td>
+<td style="text-align: right;">6.1 s</td>
+<td style="text-align: right;">5.3 s</td>
+</tr>
+<tr>
+<td style="text-align: right;">44</td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1.83</mn><mo>×</mo><msup><mn>10</mn><mn>19</mn></msup></mrow><annotation encoding="application/x-tex">1.83 \times 10^{19}</annotation></semantics></math></td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1.4</mn><mo>×</mo><msup><mn>10</mn><mn>8</mn></msup></mrow><annotation encoding="application/x-tex">1.4 \times 10^{8}</annotation></semantics></math></td>
+<td style="text-align: right;">30 s</td>
+<td style="text-align: right;">25 s</td>
+</tr>
+<tr>
+<td style="text-align: right;">46</td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1.94</mn><mo>×</mo><msup><mn>10</mn><mn>20</mn></msup></mrow><annotation encoding="application/x-tex">1.94 \times 10^{20}</annotation></semantics></math></td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>3.5</mn><mo>×</mo><msup><mn>10</mn><mn>8</mn></msup></mrow><annotation encoding="application/x-tex">3.5 \times 10^{8}</annotation></semantics></math></td>
+<td style="text-align: right;">79 s</td>
+<td style="text-align: right;">62 s</td>
+</tr>
+<tr>
+<td style="text-align: right;">49</td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>8.50</mn><mo>×</mo><msup><mn>10</mn><mn>21</mn></msup></mrow><annotation encoding="application/x-tex">8.50 \times 10^{21}</annotation></semantics></math></td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1.4</mn><mo>×</mo><msup><mn>10</mn><mn>9</mn></msup></mrow><annotation encoding="application/x-tex">1.4 \times 10^{9}</annotation></semantics></math></td>
+<td style="text-align: right;">516 s</td>
+<td style="text-align: right;"></td>
+</tr>
+<tr>
+<td style="text-align: right;">50</td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2.22</mn><mo>×</mo><msup><mn>10</mn><mn>22</mn></msup></mrow><annotation encoding="application/x-tex">2.22 \times 10^{22}</annotation></semantics></math></td>
+<td
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2.3</mn><mo>×</mo><msup><mn>10</mn><mn>9</mn></msup></mrow><annotation encoding="application/x-tex">2.3 \times 10^{9}</annotation></semantics></math></td>
+<td style="text-align: right;">1052 s</td>
+<td style="text-align: right;"></td>
+</tr>
+</tbody>
+</table>
+<table id="tab:scaling">
+<caption>Table 4. Scaling with threads for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>40</mn></mrow><annotation encoding="application/x-tex">n = 40</annotation></semantics></math>
+on the same machine.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">threads</th>
+<th style="text-align: right;">1</th>
+<th style="text-align: right;">4</th>
+<th style="text-align: right;">9</th>
+<th style="text-align: right;">18</th>
+<th style="text-align: right;">36</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Rust</td>
+<td style="text-align: right;">20.1 s</td>
+<td style="text-align: right;">5.9 s</td>
+<td style="text-align: right;">3.4 s</td>
+<td style="text-align: right;">2.9 s</td>
+<td style="text-align: right;">3.2 s</td>
+</tr>
+<tr>
+<td style="text-align: left;">OxCaml</td>
+<td style="text-align: right;">20.2 s</td>
+<td style="text-align: right;">5.5 s</td>
+<td style="text-align: right;">2.8 s</td>
+<td style="text-align: right;">2.2 s</td>
+<td style="text-align: right;">2.2 s</td>
+</tr>
+</tbody>
+</table>
 </body>
 </html>

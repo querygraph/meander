@@ -5,7 +5,7 @@
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Alexy Khrabrov" />
-  <meta name="dcterms.date" content="2026-10-07" />
+  <meta name="dcterms.date" content="2026-10-08" />
   <title>1. Introduction</title>
   <style>
     div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
@@ -264,6 +264,12 @@ action sequences and meanders (Section 5).</p></li>
 and computed by the verified transfer matrix up to
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>32</mn></mrow><annotation encoding="application/x-tex">n = 32</annotation></semantics></math>,
 matching the OEIS (Section 6).</p></li>
+<li><p>Parallel implementations of the same machine in Rust and OxCaml,
+unverified but checked against the certified values and the OEIS, which
+reach
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>;
+teaching implementations in Python and OCaml; and a comparison of all of
+them (Section 6.1).</p></li>
 </ol>
 <p>We do not claim new values of the sequence; larger values are
 known [6]. What is new is that the values we report come from programs

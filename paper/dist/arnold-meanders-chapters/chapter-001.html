@@ -5,7 +5,7 @@
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Alexy Khrabrov" />
-  <meta name="dcterms.date" content="2026-10-07" />
+  <meta name="dcterms.date" content="2026-10-08" />
   <title>Abstract</title>
   <style>
     div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
@@ -230,9 +230,13 @@ numbers up to
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>30</mn></mrow><annotation encoding="application/x-tex">n=30</annotation></semantics></math>
 in about half a minute; values up to
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>13</mn></mrow><annotation encoding="application/x-tex">n=13</annotation></semantics></math>
-are checked by the Lean kernel alone. The development is about 5,000
-lines of Lean and is available at <a
-href="https://github.com/querygraph/meander"
+are checked by the Lean kernel alone. Unverified parallel
+implementations of the same machine in Rust and OxCaml, with each state
+packed into one machine word, reproduce the published values up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>,
+and companion notebooks implement the algorithms in Lean, Python and
+OCaml. The development is about 5,000 lines of Lean and is available at
+<a href="https://github.com/querygraph/meander"
 class="uri">https://github.com/querygraph/meander</a>.</p>
 </body>
 </html>

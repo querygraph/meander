@@ -5,7 +5,7 @@
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Alexy Khrabrov" />
-  <meta name="dcterms.date" content="2026-10-07" />
+  <meta name="dcterms.date" content="2026-10-08" />
   <title>7. Discussion</title>
   <style>
     div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
@@ -248,9 +248,9 @@ things, that the longest increasing subsequence of permutations sampled
 from the permuton is sublinear. The conjecture is the probabilistic
 counterpart of the asymptotic formula of Di Francesco, Golinelli and
 Guitter [5],
-<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>M</mi><mi>n</mi></msub><mo>∼</mo><mi>C</mi><mspace width="0.167em"></mspace><msup><mi>A</mi><mi>n</mi></msup><mspace width="0.167em"></mspace><msup><mi>n</mi><mrow><mi>−</mi><mi>α</mi></mrow></msup><mo>,</mo><mspace width="2.0em"></mspace><mi>α</mi><mo>=</mo><mfrac><mrow><mn>29</mn><mo>+</mo><msqrt><mn>145</mn></msqrt></mrow><mn>12</mn></mfrac><mo>≈</mo><mn>3.4201</mn><mo>,</mo></mrow><annotation encoding="application/x-tex">M_n \sim C\, A^n\, n^{-\alpha}, \qquad \alpha = \frac{29+\sqrt{145}}{12} \approx 3.4201,</annotation></semantics></math>
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mi>n</mi></msub><mo>∼</mo><mi>C</mi><mspace width="0.167em"></mspace><msup><mi>A</mi><mi>n</mi></msup><mspace width="0.167em"></mspace><msup><mi>n</mi><mrow><mi>−</mi><mi>α</mi></mrow></msup><mo>,</mo><mspace width="2.0em"></mspace><mi>α</mi><mo>=</mo><mfrac><mrow><mn>29</mn><mo>+</mo><msqrt><mn>145</mn></msqrt></mrow><mn>12</mn></mfrac><mo>≈</mo><mn>3.4201</mn><mo>,</mo></mrow><annotation encoding="application/x-tex">\overline{\mathrm{M}}_n \sim C\, A^n\, n^{-\alpha}, \qquad \alpha = \frac{29+\sqrt{145}}{12} \approx 3.4201,</annotation></semantics></math>
 for the number
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>M</mi><mi>n</mi></msub><annotation encoding="application/x-tex">M_n</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mi>n</mi></msub><annotation encoding="application/x-tex">\overline{\mathrm{M}}_n</annotation></semantics></math>
 of closed meanders of order
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>,
 with
@@ -259,7 +259,7 @@ estimated by Jensen and Guttmann [6, 7].</p>
 <p>Exact counts test the exponent directly. With
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>
 fixed at that estimate,
-<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>α</mi><mi>n</mi></msub><mo>=</mo><mi>−</mi><mfrac><mrow><mrow><mi mathvariant="normal">log</mi><mo>&#8289;</mo></mrow><mo minsize="120%" maxsize="120%" stretchy="true" form="prefix">(</mo><msub><mi>M</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mi>/</mi><mo stretchy="false" form="prefix">(</mo><mi>A</mi><msub><mi>M</mi><mi>n</mi></msub><mo stretchy="false" form="postfix">)</mo><mo minsize="120%" maxsize="120%" stretchy="true" form="postfix">)</mo></mrow><mrow><mrow><mi mathvariant="normal">log</mi><mo>&#8289;</mo></mrow><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>+</mo><mn>1</mn><mi>/</mi><mi>n</mi><mo stretchy="false" form="postfix">)</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">\alpha_n = -\frac{\log\bigl(M_{n+1}/(A M_n)\bigr)}{\log(1 + 1/n)}</annotation></semantics></math>
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>α</mi><mi>n</mi></msub><mo>=</mo><mi>−</mi><mfrac><mrow><mrow><mi mathvariant="normal">log</mi><mo>&#8289;</mo></mrow><mo minsize="120%" maxsize="120%" stretchy="true" form="prefix">(</mo><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mi>/</mi><mo stretchy="false" form="prefix">(</mo><mi>A</mi><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mi>n</mi></msub><mo stretchy="false" form="postfix">)</mo><mo minsize="120%" maxsize="120%" stretchy="true" form="postfix">)</mo></mrow><mrow><mrow><mi mathvariant="normal">log</mi><mo>&#8289;</mo></mrow><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>+</mo><mn>1</mn><mi>/</mi><mi>n</mi><mo stretchy="false" form="postfix">)</mo></mrow></mfrac></mrow><annotation encoding="application/x-tex">\alpha_n = -\frac{\log\bigl(\overline{\mathrm{M}}_{n+1}/(A \overline{\mathrm{M}}_n)\bigr)}{\log(1 + 1/n)}</annotation></semantics></math>
 estimates
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>,
 with an error of order
@@ -270,34 +270,33 @@ from
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>α</mi><mrow><mi>n</mi><mo>−</mo><mn>2</mn></mrow></msub><annotation encoding="application/x-tex">\alpha_{n-2}</annotation></semantics></math>
 and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>α</mi><mi>n</mi></msub><annotation encoding="application/x-tex">\alpha_n</annotation></semantics></math>
-removes most of it. Table 3 uses
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>M</mi><mi>n</mi></msub><mo>=</mo><mrow><mi mathvariant="normal">o</mi><mi mathvariant="normal">p</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">n</mi></mrow><mo stretchy="false" form="prefix">(</mo><mn>2</mn><mi>n</mi><mo>−</mo><mn>1</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">M_n = \mathrm{open}(2n-1)</annotation></semantics></math>
+removes most of it. Table 5 uses
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mi>n</mi></msub><mo>=</mo><msub><mi mathvariant="normal">M</mi><mrow><mn>2</mn><mi>n</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><annotation encoding="application/x-tex">\overline{\mathrm{M}}_n = \mathrm{M}_{2n-1}</annotation></semantics></math>
 (Theorem 3.2) with open counts up to
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>45</mn><annotation encoding="application/x-tex">45</annotation></semantics></math>
-crossings, computed by the transfer matrix of Section 5 run in the
-parallel programs described below. The extrapolated values increase
-steadily towards
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>49</mn><annotation encoding="application/x-tex">49</annotation></semantics></math>
+crossings, computed by the parallel programs of Section 6.1. The
+extrapolated values increase steadily towards
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>3.4201</mn><annotation encoding="application/x-tex">3.4201</annotation></semantics></math>.
 This is numerical evidence for the conjectured exponent, not a proof,
 and it assumes the estimate of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>.</p>
-<table id="tab:exponent" style="width:74%;">
-<caption>Table 3. Estimates of the meander exponent
+<table id="tab:exponent" style="width:98%;">
+<caption>Table 5. Estimates of the meander exponent
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
 from exact counts of closed meanders, with the growth constant fixed at
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi><mo>=</mo><mn>12.2629</mn></mrow><annotation encoding="application/x-tex">A = 12.2629</annotation></semantics></math>.</caption>
 <colgroup>
-<col style="width: 12%" />
-<col style="width: 22%" />
-<col style="width: 18%" />
-<col style="width: 20%" />
+<col style="width: 9%" />
+<col style="width: 58%" />
+<col style="width: 13%" />
+<col style="width: 15%" />
 </colgroup>
 <thead>
 <tr>
 <th
 style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math></th>
 <th
-style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>M</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mi>/</mi><msub><mi>M</mi><mi>n</mi></msub></mrow><annotation encoding="application/x-tex">M_{n+1}/M_n</annotation></semantics></math></th>
+style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub><mi>/</mi><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mi>n</mi></msub></mrow><annotation encoding="application/x-tex">\overline{\mathrm{M}}_{n+1}/\overline{\mathrm{M}}_n</annotation></semantics></math></th>
 <th
 style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>α</mi><mi>n</mi></msub><annotation encoding="application/x-tex">\alpha_n</annotation></semantics></math></th>
 <th style="text-align: right;">extrapolated</th>
@@ -341,6 +340,12 @@ style="text-align: right;"><math display="inline" xmlns="http://www.w3.org/1998/
 <td style="text-align: right;">3.4172</td>
 </tr>
 <tr>
+<td style="text-align: right;">24</td>
+<td style="text-align: right;">10.6996</td>
+<td style="text-align: right;">3.3407</td>
+<td style="text-align: right;">3.4180</td>
+</tr>
+<tr>
 <td colspan="3" style="text-align: right;">conjecture [5]</td>
 <td style="text-align: right;">3.4201</td>
 </tr>
@@ -352,12 +357,9 @@ Limitations and further work</h2>
 Jensen’s algorithm [6] encodes states more compactly and enumerates well
 beyond
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>32</mn></mrow><annotation encoding="application/x-tex">n=32</annotation></semantics></math>.
-The repository also contains two unverified programs, in Rust and in
-OxCaml, that run the same machine with each state packed into one
-machine word (reading the open arcs along the cut, they form a
-non-crossing matching, a bracket word) and every layer spread over all
-cores. They reproduce the published values up to
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>48</mn></mrow><annotation encoding="application/x-tex">n = 48</annotation></semantics></math>.
+The unverified Rust and OxCaml programs of Section 6.1 pack each state
+into one machine word and reach
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>.
 Verifying such an encoding is a natural next step, and the generic
 counting theorem already accepts any merge procedure that preserves
 weighted sums. A second direction is to formalize the rigorous
