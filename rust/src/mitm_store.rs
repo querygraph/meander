@@ -32,6 +32,8 @@ struct Manifest {
     rmax: [usize; 2],
     /// An extension in progress: target horizon, and per side the last finished r.
     partial: Option<(usize, [usize; 2])>,
+    /// Backward layers were deleted once used, so the store cannot be extended.
+    discarded: bool,
 }
 
 impl Manifest {
@@ -47,6 +49,7 @@ impl Manifest {
                 (Some("kmax"), Some(v)) => m.kmax = v.parse().unwrap(),
                 (Some("rmax0"), Some(v)) => m.rmax[0] = v.parse().unwrap(),
                 (Some("rmax1"), Some(v)) => m.rmax[1] = v.parse().unwrap(),
+                (Some("discarded"), Some(v)) => m.discarded = v == "1",
                 (Some("partial"), Some(v)) => {
                     let p: Vec<usize> = v.split(',').map(|s| s.parse().unwrap()).collect();
                     m.partial = Some((p[0], [p[1], p[2]]));
@@ -63,6 +66,9 @@ impl Manifest {
         s += &format!("horizons {}\nkmax {}\nrmax0 {}\nrmax1 {}\n", hs.join(","), self.kmax, self.rmax[0], self.rmax[1]);
         if let Some((b, done)) = self.partial {
             s += &format!("partial {b},{},{}\n", done[0], done[1]);
+        }
+        if self.discarded {
+            s += "discarded 1\n";
         }
         let tmp = root.join("manifest.tmp");
         fs::write(&tmp, s).expect("write manifest");
@@ -109,11 +115,32 @@ fn finishers(p: usize) -> Vec<(Key, u128)> {
     if p == 0 { vec![(pair, 1), (narrow(INIT), 1)] } else { vec![(pair, 1)] }
 }
 
-/// Whether a pause was requested: a file `PAUSE` in the store. The run stops at the next layer
-/// boundary, with every finished layer saved; running `extend` again with the same horizon
-/// resumes there.
-fn pause_requested(root: &Path) -> bool {
-    root.join("PAUSE").exists()
+/// How a run treats its layers and the disk.
+#[derive(Clone, Copy)]
+pub struct Options {
+    pub threads: usize,
+    /// States per shard kept in memory before spilling.
+    pub cap: usize,
+    /// Delete each backward layer as soon as the next one has read it: far less disk, but the
+    /// store cannot be extended later, and a crash (not a pause) during a step means starting
+    /// over, since that step's source is gone.
+    pub discard: bool,
+    /// Pause, as for `PAUSE`, when the disk has less free space than this.
+    pub min_free: u64,
+}
+
+/// Whether to stop at this layer boundary: a file `PAUSE` in the store, or too little free disk.
+/// Every finished layer is saved, and running `extend` again with the same horizon resumes.
+fn pause_requested(root: &Path, opt: &Options, out: &mut dyn FnMut(&str)) -> bool {
+    if root.join("PAUSE").exists() {
+        return true;
+    }
+    let free = store::free_bytes(root);
+    if free < opt.min_free {
+        out(&format!("low disk: {:.1} GB free", free as f64 / 1e9));
+        return true;
+    }
+    false
 }
 
 /// How `extend` ended.
@@ -125,7 +152,8 @@ pub enum Outcome {
 
 /// Extend the store at `root` to horizon `target`, computing every new A(n). Stops early, with
 /// all finished layers saved, if a pause is requested.
-pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut dyn FnMut(&str)) -> Outcome {
+pub fn extend(root: &Path, target: usize, opt: Options, out: &mut dyn FnMut(&str)) -> Outcome {
+    let (threads, cap) = (opt.threads, opt.cap);
     store::raise_fd_limit();
     fs::create_dir_all(root).expect("create store");
     let start = Instant::now();
@@ -135,6 +163,11 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
         out(&format!("store already has horizon {}", old.unwrap()));
         return Outcome::Complete;
     }
+    if old.is_some() && m.discarded && m.partial.is_none_or(|(b, _)| b != target) {
+        out("this store discarded its backward layers and cannot be extended; build a new one");
+        return Outcome::Complete;
+    }
+    m.discarded |= opt.discard;
     let seg = m.horizons.len();
     let mut done = match m.partial {
         Some((b, d)) if b == target => d,
@@ -153,14 +186,14 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
         successors(NO_TARGET, 0, widen(k), |k2| emit(narrow(k2)));
     };
     while m.kmax < kmax {
-        if pause_requested(root) {
+        if pause_requested(root, &opt, out) {
             out(&format!("paused before F {} at {:.0} s", m.kmax + 1, start.elapsed().as_secs_f64()));
             return Outcome::Paused;
         }
         let src = Layer::new(fdir(root, m.kmax), 1);
         let dst = fdir(root, m.kmax + 1);
         let _ = fs::remove_dir_all(&dst);
-        let st = store::step(&src, &dst, 0, threads, cap, &bridge);
+        let st = store::step(src, &dst, 0, threads, cap, &bridge, &mut || {});
         m.kmax += 1;
         m.save(root);
         out(&format!(
@@ -200,7 +233,7 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
             save_values(root, &values);
         }
         for r in (done[p] + 1)..=rmax_new {
-            if pause_requested(root) {
+            if pause_requested(root, &opt, out) {
                 out(&format!("paused before G{p} {r} at {:.0} s", start.elapsed().as_secs_f64()));
                 return Outcome::Paused;
             }
@@ -215,10 +248,14 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
             };
             let dst = gdir(root, p, r);
             let _ = fs::remove_dir_all(dst.join("tmp"));
-            for d in 0..crate::ooc::SHARDS {
-                let _ = fs::remove_file(dst.join(format!("{d:04}.{seg}.bin")));
-            }
-            let st = store::step(&g(r - 1), &dst, seg, threads, cap, &back);
+            store::remove_segment(&dst, seg);
+            let src_dir = gdir(root, p, r - 1);
+            let st = store::step(g(r - 1), &dst, seg, threads, cap, &back, &mut || {
+                // The source's values were taken when it was built; with discard it is not needed.
+                if opt.discard && r >= 2 {
+                    let _ = fs::remove_dir_all(&src_dir);
+                }
+            });
             out(&format!(
                 "G{p} {:3}  new states {:>13}  {:>10.2} GB  spilled {:>13}  {:>8.0} s",
                 r,
@@ -232,6 +269,9 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
             done[p] = r;
             m.partial = Some((target, done));
             m.save(root);
+            if opt.discard {
+                let _ = fs::remove_dir_all(gdir(root, p, r - 1));
+            }
         }
         m.rmax[p] = rmax_new;
     }

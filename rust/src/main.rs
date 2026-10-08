@@ -1,6 +1,6 @@
 //! `meanders-rs [N] [--from M] [--threads T] [--check] [--two-moduli] [--presize]
 //! [--spill DIR [--cap N | --mem-gb G] [--all]]
-//! [--mitm B] [--store DIR --horizon B [--cap N | --mem-gb G]]`. With `--all`, one out-of-core sweep for N
+//! [--mitm B] [--store DIR --horizon B [--cap N | --mem-gb G] [--discard] [--min-free-gb G]]`. With `--all`, one out-of-core sweep for N
 //! also prints A(m) for every m ≤ N.: print Arnold's numbers (OEIS A005316)
 //! for `n = M, …, N`, computed by the parallel transfer matrix.
 
@@ -31,7 +31,13 @@ fn main() {
     let all = args.iter().any(|a| a == "--all");
     if let (Some(root), Some(b)) = (arg("--store"), arg("--horizon").and_then(|v| v.parse::<usize>().ok())) {
         let cap = cap.unwrap_or_else(|| ((mem_gb.unwrap_or(16.0) * 1e9 / (4096.0 * 120.0)) as usize).max(1024));
-        let outcome = mitm_store::extend(std::path::Path::new(&root), b, threads, cap, &mut |line| {
+        let opt = mitm_store::Options {
+            threads,
+            cap,
+            discard: args.iter().any(|a| a == "--discard"),
+            min_free: (arg("--min-free-gb").and_then(|v| v.parse::<f64>().ok()).unwrap_or(40.0) * 1e9) as u64,
+        };
+        let outcome = mitm_store::extend(std::path::Path::new(&root), b, opt, &mut |line| {
             println!("{line}");
             use std::io::Write;
             let _ = std::io::stdout().flush();
@@ -219,6 +225,10 @@ mod tests {
         }
     }
 
+    fn test_opt() -> crate::mitm_store::Options {
+        crate::mitm_store::Options { threads: 3, cap: 64, discard: false, min_free: 0 }
+    }
+
     /// A store built to 20 and extended to 24 holds the same values as one built at 24, and
     /// every value matches the known one and its second split.
     #[test]
@@ -227,7 +237,7 @@ mod tests {
         let (a, b) = (base.join("a"), base.join("b"));
         for (dir, horizons) in [(&a, vec![20, 24]), (&b, vec![24])] {
             for h in horizons {
-                crate::mitm_store::extend(dir, h, 3, 64, &mut |_| {});
+                crate::mitm_store::extend(dir, h, test_opt(), &mut |_| {});
             }
         }
         let va = std::fs::read_to_string(a.join("values")).unwrap();
@@ -243,6 +253,23 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
+    /// Discarding used backward layers gives the same values and keeps one layer per family.
+    #[test]
+    fn store_discard_matches() {
+        let base = std::env::temp_dir().join(format!("meanders-discard-test-{}", std::process::id()));
+        let (a, b) = (base.join("a"), base.join("b"));
+        crate::mitm_store::extend(&a, 24, crate::mitm_store::Options { discard: true, ..test_opt() }, &mut |_| {});
+        crate::mitm_store::extend(&b, 24, test_opt(), &mut |_| {});
+        assert_eq!(
+            std::fs::read_to_string(a.join("values")).unwrap(),
+            std::fs::read_to_string(b.join("values")).unwrap()
+        );
+        for p in ["G0", "G1"] {
+            assert_eq!(std::fs::read_dir(a.join(p)).unwrap().count(), 1, "{p} keeps its last layer");
+        }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
     /// Pausing at a layer boundary and resuming gives the same store as an uninterrupted run,
     /// also after an interrupted step left stale runs behind.
     #[test]
@@ -250,10 +277,10 @@ mod tests {
         use crate::mitm_store::{Outcome, extend};
         let base = std::env::temp_dir().join(format!("meanders-pause-test-{}", std::process::id()));
         let (a, b) = (base.join("a"), base.join("b"));
-        extend(&b, 22, 3, 64, &mut |_| {});
+        extend(&b, 22, test_opt(), &mut |_| {});
         std::fs::create_dir_all(&a).unwrap();
         let pause = a.join("PAUSE");
-        let outcome = extend(&a, 22, 3, 64, &mut |line| {
+        let outcome = extend(&a, 22, test_opt(), &mut |line| {
             if line.starts_with("G1   5") {
                 std::fs::write(&pause, "").unwrap();
             }
@@ -262,9 +289,10 @@ mod tests {
         // A crash in the middle of the next step leaves runs in its scratch directory.
         let tmp = a.join("G1").join("006").join("tmp");
         std::fs::create_dir_all(&tmp).unwrap();
-        std::fs::write(tmp.join("0000-0.run"), [1u8, 2, 3]).unwrap();
+        std::fs::write(tmp.join("w0.spill"), [1u8, 2, 3]).unwrap();
+        std::fs::write(a.join("G1").join("006").join("seg0.dat"), [9u8; 7]).unwrap();
         std::fs::remove_file(&pause).unwrap();
-        assert_eq!(extend(&a, 22, 3, 64, &mut |_| {}), Outcome::Complete);
+        assert_eq!(extend(&a, 22, test_opt(), &mut |_| {}), Outcome::Complete);
         assert!(!tmp.exists(), "stale runs removed");
         assert_eq!(
             std::fs::read_to_string(a.join("values")).unwrap(),
