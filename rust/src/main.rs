@@ -3,6 +3,7 @@
 //! also prints A(m) for every m ≤ N.: print Arnold's numbers (OEIS A005316)
 //! for `n = M, …, N`, computed by the parallel transfer matrix.
 
+mod mitm;
 mod ooc;
 mod par;
 mod serial;
@@ -24,6 +25,20 @@ fn main() {
     let cap: Option<usize> = flag("--cap");
     let mem_gb: Option<f64> = arg("--mem-gb").and_then(|v| v.parse().ok());
     let all = args.iter().any(|a| a == "--all");
+    if let Some(b) = arg("--mitm").and_then(|v| v.parse::<usize>().ok()) {
+        let t = std::time::Instant::now();
+        println!("# n\tcount\tcheck\tforward_states\tbackward_states\tthreads={threads}");
+        mitm::run(b, threads, |r| {
+            let check = match r.check {
+                Some(c) if c == r.count => "ok".to_string(),
+                Some(c) => format!("MISMATCH({c})"),
+                None => "-".to_string(),
+            };
+            println!("{}\t{}\t{check}\t{}\t{}", r.n, r.count, r.forward_states, r.backward_states);
+        });
+        eprintln!("seconds: {:.3}", t.elapsed().as_secs_f64());
+        return;
+    }
     println!("# n\tcount\tpeak_states\ttotal_states\tseconds\tthreads={threads}");
     for m in from..=n {
         let t = std::time::Instant::now();
@@ -99,6 +114,51 @@ mod tests {
         assert_eq!(s.all, KNOWN[..27].to_vec(), "every A(m), m <= 26, from one sweep");
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "run files left behind");
         let _ = std::fs::remove_dir(&dir);
+    }
+
+    /// The inverse transitions are exact: on every state reachable within 12 bridges, `t` is a
+    /// predecessor of `s` exactly when `s` is a bridge successor of `t`; and `depth` is the first
+    /// layer where a state appears.
+    #[test]
+    fn predecessors_invert_bridge_steps() {
+        use crate::state::{Word, decode, depth, encode, predecessors};
+        use std::collections::{HashMap, HashSet};
+        let big = 100; // no viability pruning, and every point is a bridge
+        let succ = |k: crate::state::Key| {
+            let mut v = Vec::new();
+            crate::word::successors(big, 0, k, |k2| v.push(k2));
+            v
+        };
+        let mut first: HashMap<crate::state::Key, usize> = HashMap::from([(crate::state::INIT, 0)]);
+        let mut layer = vec![crate::state::INIT];
+        for x in 1..=12 {
+            let mut next: Vec<_> = layer.iter().flat_map(|&k| succ(k)).collect();
+            next.sort_unstable();
+            next.dedup();
+            for &k in &next {
+                first.entry(k).or_insert(x);
+            }
+            layer = next;
+        }
+        for (&k, &x) in &first {
+            assert_eq!(depth(&decode(k)), x, "depth of a state first reached at layer {x}");
+            let mut pre = HashSet::new();
+            predecessors(&decode(k), |t: Word| {
+                pre.insert(encode(&t));
+            });
+            for &t in &pre {
+                assert!(succ(t).contains(&k), "spurious predecessor");
+            }
+            if x < 12 {
+                for k2 in succ(k) {
+                    let mut back = HashSet::new();
+                    predecessors(&decode(k2), |t: Word| {
+                        back.insert(encode(&t));
+                    });
+                    assert!(back.contains(&k), "missing predecessor");
+                }
+            }
+        }
     }
 
     #[test]

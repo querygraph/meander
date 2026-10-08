@@ -210,3 +210,97 @@ pub fn final_key() -> Key {
     w[0] = END;
     encode(&Word { w, len: 1, h: 0 })
 }
+
+/// Prefix balances of a word without `E`: `bal[i]` = (number of `(`) − (number of `)`) in
+/// positions `0..i`.
+fn balances(s: &Word) -> [i32; 65] {
+    let mut bal = [0i32; 65];
+    for i in 0..s.len {
+        bal[i + 1] = bal[i] + if s.w[i] == OPEN { 1 } else { -1 };
+    }
+    bal
+}
+
+/// The fewest bridges that build state `s` (a word without `E`) from the west: each piece of
+/// river west of the cut joins two open arcs, and needs one bridge if they are on opposite sides
+/// of the road and two if they are on the same side. The pieces joining opposite sides are the
+/// unmatched `(` left of the cut, so this is `len − bal[h]`.
+pub fn depth(s: &Word) -> usize {
+    s.len - balances(s)[s.h] as usize
+}
+
+/// `emit(t)` for every state `t` with a bridge step `t → s` (the inverse of the bridge cases of
+/// `successors`), for words without `E`. Viability is not applied.
+pub fn predecessors(s: &Word, mut emit: impl FnMut(Word)) {
+    let (h, len) = (s.h, s.len);
+    let bal = balances(s);
+    // open both: a matched pair `()` was inserted at h-1, h.
+    if h >= 1 && h < len && s.w[h - 1] == OPEN && s.w[h] == CLOSE {
+        let mut t = *s;
+        remove(&mut t, h);
+        remove(&mut t, h - 1);
+        t.h = h - 1;
+        emit(t);
+    }
+    // open above, close below: same word, one arc fewer above.
+    if h >= 1 {
+        let mut t = *s;
+        t.h = h - 1;
+        emit(t);
+    }
+    // close above, open below: same word, one arc more above.
+    if h < len {
+        let mut t = *s;
+        t.h = h + 1;
+        emit(t);
+    }
+    // close both: two letters were removed at the cut and their partners joined.
+    let mut stack = [0usize; 64];
+    let mut sp = 0;
+    let mut partner = [0usize; 64];
+    for i in 0..len {
+        if s.w[i] == OPEN {
+            stack[sp] = i;
+            sp += 1;
+        } else {
+            sp -= 1;
+            partner[stack[sp]] = i;
+            partner[i] = stack[sp];
+        }
+    }
+    // Is w[a..b] balanced? (never below its starting level, ending at it)
+    let balanced = |a: usize, b: usize| bal[b] == bal[a] && (a..=b).all(|i| bal[i] >= bal[a]);
+    for p in 0..len {
+        if s.w[p] != OPEN {
+            continue;
+        }
+        let q = partner[p];
+        let mut t = *s;
+        if p >= h {
+            // right of the cut: both removed letters were `(`, and p was `)`.
+            if !balanced(h, p) {
+                continue;
+            }
+            t.w[p] = CLOSE;
+            insert(&mut t, h, OPEN);
+            insert(&mut t, h, OPEN);
+        } else if q < h {
+            // left of the cut: both were `)`, and q was `(`.
+            if !balanced(q + 1, h) {
+                continue;
+            }
+            t.w[q] = OPEN;
+            insert(&mut t, h, CLOSE);
+            insert(&mut t, h, CLOSE);
+        } else {
+            // straddling: `)` joined p and `(` joined q.
+            if !balanced(p + 1, h) {
+                continue;
+            }
+            insert(&mut t, h, OPEN);
+            insert(&mut t, h, CLOSE);
+        }
+        t.h = h + 1;
+        emit(t);
+    }
+}

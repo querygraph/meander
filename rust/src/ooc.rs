@@ -34,38 +34,59 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
-const SHARD_BITS: u32 = 12;
-const SHARDS: usize = 1 << SHARD_BITS;
+pub(crate) const SHARD_BITS: u32 = 12;
+pub(crate) const SHARDS: usize = 1 << SHARD_BITS;
 const BATCH: usize = 128;
 const MAX_LOAD: f64 = 0.8;
 const READ_BUF: usize = 1 << 20;
 
 #[inline(always)]
-fn hash(k: Key) -> u64 {
+pub(crate) fn hash(k: Key) -> u64 {
     let p = (k as u128).wrapping_mul(0x9E37_79B9_7F4A_7C15_u128);
     (p as u64) ^ ((p >> 64) as u64)
 }
 
 #[inline(always)]
-fn shard_of(hv: u64) -> usize {
+pub(crate) fn shard_of(hv: u64) -> usize {
     (hv >> (64 - SHARD_BITS)) as usize
 }
 
 /// A growable open-addressing table with exact counts (slots hold `key + 1`; `0` is empty).
 #[derive(Default)]
-struct Table {
+pub(crate) struct Table {
     keys: Vec<Key>,
     cnts: Vec<u128>,
     len: usize,
 }
 
 impl Table {
+    pub(crate) fn get(&self, k: Key) -> u128 {
+        if self.keys.is_empty() {
+            return 0;
+        }
+        let n = self.keys.len();
+        let mut i = (((hash(k) << SHARD_BITS) as u128 * n as u128) >> 64) as usize;
+        loop {
+            let ki = self.keys[i];
+            if ki == k + 1 {
+                return self.cnts[i];
+            }
+            if ki == 0 {
+                return 0;
+            }
+            i += 1;
+            if i == n {
+                i = 0;
+            }
+        }
+    }
+
     fn with_slots(slots: usize) -> Table {
         Table { keys: vec![0; slots], cnts: vec![0; slots], len: 0 }
     }
 
     #[inline(always)]
-    fn add(&mut self, k: Key, hv: u64, c: u128) {
+    pub(crate) fn add(&mut self, k: Key, hv: u64, c: u128) {
         if (self.len + 1) as f64 > self.keys.len() as f64 * MAX_LOAD {
             let slots = (self.keys.len() * 3 / 2).max(64);
             let old = std::mem::replace(self, Table::with_slots(slots));
@@ -95,7 +116,7 @@ impl Table {
         }
     }
 
-    fn entries(&self) -> impl Iterator<Item = (Key, u128)> + '_ {
+    pub(crate) fn entries(&self) -> impl Iterator<Item = (Key, u128)> + '_ {
         self.keys.iter().zip(&self.cnts).filter(|e| *e.0 != 0).map(|(k, c)| (k - 1, *c))
     }
 
@@ -254,6 +275,7 @@ pub fn count(m: usize, threads: usize, cap: usize, dir: &Path) -> Stats {
     let mut all = vec![0u128; m + 1];
     all[0] = 1;
     let found = Mutex::new(0u128);
+    let start = std::time::Instant::now();
     for x in 0..=m {
         let target = if x >= 1 && x < m { Some(finishing_state(x)) } else { None };
         let next: Vec<Mutex<Shard>> = (0..SHARDS).map(|_| Mutex::new(Shard::default())).collect();
@@ -329,13 +351,17 @@ pub fn count(m: usize, threads: usize, cap: usize, dir: &Path) -> Stats {
             all[x] = std::mem::take(&mut *found.lock().unwrap());
         }
         // Layer x has now been read in full, so its size (distinct states) is known exactly.
+        let size = visited.swap(0, Ordering::Relaxed);
         if x > 0 {
-            let size = visited.swap(0, Ordering::Relaxed);
             peak = peak.max(size);
             total += size;
-        } else {
-            visited.store(0, Ordering::Relaxed);
         }
+        eprintln!(
+            "layer {x:2}  states {size:>13}  {:>8.0} s  on disk {:>7.2} GB{}",
+            start.elapsed().as_secs_f64(),
+            on_disk.load(Ordering::Relaxed) as f64 / 1e9,
+            if target.is_some() { format!("  A({x}) = {}", all[x]) } else { String::new() }
+        );
         layer = next
             .into_iter()
             .map(|s| {
