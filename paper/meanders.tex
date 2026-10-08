@@ -55,8 +55,11 @@ machine that carries the actual pieces of river. Along the way we prove that clo
 of order $n$ are equinumerous with open meanders with $2n-1$ crossings, and that there are at
 most $C_n^2$ closed meanders, where $C_n$ is the $n$-th Catalan number. The verified transfer
 matrix computes the meander numbers up to $n=30$ in about half a minute; values up to $n=13$
-are checked by the Lean kernel alone. The development is about 5{,}000 lines of Lean and is
-available at \url{https://github.com/querygraph/meander}.
+are checked by the Lean kernel alone. Unverified parallel implementations of the same machine
+in Rust and OxCaml, with each state packed into one machine word, reproduce the published values
+up to $n = 50$, and companion notebooks implement the algorithms in Lean, Python and OCaml. The
+development is about 5{,}000 lines of Lean and is available at
+\url{https://github.com/querygraph/meander}.
 \end{abstract}
 
 \maketitle
@@ -104,6 +107,9 @@ assistant~\cite{lean4} with the mathlib library~\cite{mathlib}. Our contribution
     (Section~\ref{sec:tm}).
   \item Certified values: kernel-checked for $n \le 13$, and computed by the verified transfer
     matrix up to $n = 32$, matching the OEIS (Section~\ref{sec:values}).
+  \item Parallel implementations of the same machine in Rust and OxCaml, unverified but checked
+    against the certified values and the OEIS, which reach $n = 50$; teaching implementations in
+    Python and OCaml; and a comparison of all of them (Section~\ref{sec:implementations}).
 \end{enumerate}
 
 We do not claim new values of the sequence; larger values are known~\cite{jensen00}. What
@@ -438,6 +444,86 @@ Theorem~\ref{thm:tm} up to the correctness of compilation.
 \caption{One of the $262$ open meanders with $n=9$ crossings; its crossing order is $456783210$.}\label{fig:n9}
 \end{figure}
 
+\subsection{All implementations}\label{sec:implementations}
+The repository contains the algorithms in five languages. Only the Lean programs are verified;
+the others run the same machine and are checked against the certified values and the OEIS.
+
+\begin{itemize}
+  \item \emph{Lean.} The specification (evaluable by brute force for $n \le 6$), the search
+    \code{meanderCount} with its array implementation substituted by \code{csimp}, and the
+    transfer matrix in two variants: \code{tmCount}, compiled into the executable
+    \code{meanders}, and \code{tmCountK}, evaluated by the kernel.
+  \item \emph{Rust} (\code{rust/}). The transfer matrix with a packed state. Read along the cut
+    from top to bottom, the open arcs pair up like brackets, because the pieces of river west of
+    the cut never cross. So a state is a bracket word with at most one marker for the arc that
+    leads to the east end, plus the number of arcs above the road, and fits in 64 bits for
+    $n \le 52$. Each layer is split into 4096 hash shards, each an open-addressing table behind
+    its own lock; worker threads claim source shards, batch successors per target shard, and
+    free each source shard once read, so memory holds about one layer. Counts are kept modulo
+    $2^{64}$ and, from $n = 44$, also modulo $2^{61}-1$, and recovered by the Chinese
+    remainder theorem.
+  \item \emph{OxCaml} (\code{oxcaml/}). The same algorithm in OxCaml, Jane Street's extension of
+    OCaml. Workers run under OxCaml's \code{Parallel} scheduler, shards are capsules guarded by
+    mutexes, and the compiler's mode system rules out data races. The state is an immediate
+    63-bit integer, the hot loop allocates nothing on the heap, and tables are flat arrays of
+    unboxed values that the garbage collector never scans.
+  \item \emph{Python and OCaml.} Companion notebooks teach each language by building the
+    specification, the parity search and the transfer matrix from scratch, with the state as
+    a string or a list of constructors and layers in hash tables, run on all cores with process
+    pools (Python) and domains (OCaml 5). A third notebook teaches Lean with the library's own
+    declarations.
+\end{itemize}
+
+Table~\ref{tab:fast} times the parallel programs on a workstation with an 18-core Intel Xeon
+W-2191B (36 threads) and 128~GB of memory, one value per run on all threads; on the same
+machine the verified \code{meanders} computes all values up to $n=32$ in 160\,s. Every count
+equals the OEIS term; in particular
+\[
+  \Open_{49} = 8{,}499{,}066{,}628{,}515{,}413{,}229{,}282, \qquad
+  \Open_{50} = 22{,}206{,}891{,}674{,}746{,}169{,}557{,}410.
+\]
+Memory is the limit: the largest layer for $n = 50$ holds $2.25 \times 10^9$ states, and $n = 50$
+is the largest value that fits in 128~GB, at about 35 bytes per state. Table~\ref{tab:scaling}
+shows that both programs scale to the physical cores and no further, as expected for work
+dominated by random memory access. On one thread the two are equally fast; OxCaml scales
+better, probably because it pre-sizes each layer's tables so that a shard rarely grows while
+its lock is held, at the cost of more memory. The teaching implementations are far slower:
+interpreted Python computes all values up to $n = 30$ in about twelve seconds on the laptop, and the OCaml
+notebook's transfer matrix, run as bytecode on ten domains, takes about half a second for
+$n = 28$.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{rrrrr}
+\toprule
+$n$ & $\Open_n$ & largest layer & Rust & OxCaml \\
+\midrule
+40 & $1.66 \times 10^{17}$ & $2.2 \times 10^{7}$ & 3.3\,s & 2.3\,s \\
+42 & $1.73 \times 10^{18}$ & $5.7 \times 10^{7}$ & 6.1\,s & 5.3\,s \\
+44 & $1.83 \times 10^{19}$ & $1.4 \times 10^{8}$ & 30\,s & 25\,s \\
+46 & $1.94 \times 10^{20}$ & $3.5 \times 10^{8}$ & 79\,s & 62\,s \\
+49 & $8.50 \times 10^{21}$ & $1.4 \times 10^{9}$ & 516\,s & \\
+50 & $2.22 \times 10^{22}$ & $2.3 \times 10^{9}$ & 1052\,s & \\
+\bottomrule
+\end{tabular}
+\caption{The parallel programs on 36 threads of an 18-core Xeon with 128\,GB. From $n = 44$ a
+value takes two sweeps. Peak memory at $n = 46$: 13.6\,GB (Rust), 22.9\,GB (OxCaml); at
+$n = 50$: 79\,GB (Rust).}\label{tab:fast}
+\end{table}
+
+\begin{table}[t]
+\centering
+\begin{tabular}{lrrrrr}
+\toprule
+threads & 1 & 4 & 9 & 18 & 36 \\
+\midrule
+Rust   & 20.1\,s & 5.9\,s & 3.4\,s & 2.9\,s & 3.2\,s \\
+OxCaml & 20.2\,s & 5.5\,s & 2.8\,s & 2.2\,s & 2.2\,s \\
+\bottomrule
+\end{tabular}
+\caption{Scaling with threads for $n = 40$ on the same machine.}\label{tab:scaling}
+\end{table}
+
 \section{Discussion}
 
 \subsection{What the proofs say about the algorithms}
@@ -471,16 +557,16 @@ meandric permutations converge to the corresponding \emph{meandric permuton}. Th
 other things, that the longest increasing subsequence of permutations sampled from the
 permuton is sublinear. The conjecture is the probabilistic counterpart of the asymptotic formula
 of Di Francesco, Golinelli and Guitter~\cite{dgg00},
-\[ M_n \sim C\, A^n\, n^{-\alpha}, \qquad \alpha = \frac{29+\sqrt{145}}{12} \approx 3.4201, \]
-for the number $M_n$ of closed meanders of order $n$, with $A \approx 12.2629$ estimated by
+\[ \Closed_n \sim C\, A^n\, n^{-\alpha}, \qquad \alpha = \frac{29+\sqrt{145}}{12} \approx 3.4201, \]
+for the number $\Closed_n$ of closed meanders of order $n$, with $A \approx 12.2629$ estimated by
 Jensen and Guttmann~\cite{jensen00,jensen-guttmann}.
 
 Exact counts test the exponent directly. With $A$ fixed at that estimate,
-\[ \alpha_n = -\frac{\log\bigl(M_{n+1}/(A M_n)\bigr)}{\log(1 + 1/n)} \]
+\[ \alpha_n = -\frac{\log\bigl(\Closed_{n+1}/(A \Closed_n)\bigr)}{\log(1 + 1/n)} \]
 estimates $\alpha$, with an error of order $1/n$; extrapolating linearly in $1/n$ from $\alpha_{n-2}$ and $\alpha_n$ removes most
-of it. Table~\ref{tab:exponent} uses $M_n = \mathrm{open}(2n-1)$
-(Theorem~\ref{thm:closed-open}) with open counts up to $45$ crossings, computed by the
-transfer matrix of Section~\ref{sec:tm} run in the parallel programs described below. The
+of it. Table~\ref{tab:exponent} uses $\Closed_n = \Open_{2n-1}$
+(Theorem~\ref{thm:closed-open}) with open counts up to $49$ crossings, computed by the
+parallel programs of Section~\ref{sec:implementations}. The
 extrapolated values increase steadily towards $3.4201$. This is numerical evidence for the
 conjectured exponent, not a proof, and it assumes the estimate of $A$.
 
@@ -488,7 +574,7 @@ conjectured exponent, not a proof, and it assumes the estimate of $A$.
 \centering
 \begin{tabular}{rrrr}
 \toprule
-$n$ & $M_{n+1}/M_n$ & $\alpha_n$ & extrapolated \\
+$n$ & $\Closed_{n+1}/\Closed_n$ & $\alpha_n$ & extrapolated \\
 \midrule
 12 & 9.4415 & 3.2665 & 3.4053 \\
 14 & 9.7747 & 3.2870 & 3.4100 \\
@@ -496,6 +582,7 @@ $n$ & $M_{n+1}/M_n$ & $\alpha_n$ & extrapolated \\
 18 & 10.2506 & 3.3152 & 3.4149 \\
 20 & 10.4263 & 3.3253 & 3.4163 \\
 22 & 10.5739 & 3.3337 & 3.4172 \\
+24 & 10.6996 & 3.3407 & 3.4180 \\
 \midrule
 \multicolumn{3}{r}{conjecture~\cite{dgg00}} & 3.4201 \\
 \bottomrule
@@ -508,11 +595,8 @@ the growth constant fixed at $A = 12.2629$.}
 \subsection{Limitations and further work}
 Our verified transfer matrix is far from the state of the art. Jensen's
 algorithm~\cite{jensen00} encodes states more compactly and enumerates well beyond $n=32$. The
-repository also contains two unverified programs, in Rust and in OxCaml, that run the same
-machine with each state packed into one machine word (reading the open arcs along the cut, they
-form a non-crossing matching, a bracket word) and every layer spread over all cores. They
-reproduce the published values up to $n = 48$. Verifying such an encoding is a natural next
-step, and the generic counting theorem already accepts any merge procedure that preserves
+unverified Rust and OxCaml programs of Section~\ref{sec:implementations} pack each state into
+one machine word and reach $n = 50$. Verifying such an encoding is a natural next step, and the generic counting theorem already accepts any merge procedure that preserves
 weighted sums. A second direction is to formalize the rigorous growth-rate bounds of
 Albert and Paterson~\cite{albert-paterson}, which would make our Catalan bound one instance of
 a more general framework. Finally, the question that motivated the work, a closed formula for
