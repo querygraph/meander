@@ -56,7 +56,7 @@ pub(crate) fn shard_of(hv: u64) -> usize {
 pub(crate) struct Table {
     keys: Vec<Key>,
     cnts: Vec<u128>,
-    len: usize,
+    pub(crate) len: usize,
 }
 
 impl Table {
@@ -120,7 +120,7 @@ impl Table {
         self.keys.iter().zip(&self.cnts).filter(|e| *e.0 != 0).map(|(k, c)| (k - 1, *c))
     }
 
-    fn sorted(self) -> Vec<(Key, u128)> {
+    pub(crate) fn sorted(self) -> Vec<(Key, u128)> {
         let mut v: Vec<(Key, u128)> = self.entries().collect();
         v.sort_unstable_by_key(|e| e.0);
         v
@@ -151,7 +151,7 @@ fn put_varint(buf: &mut Vec<u8>, mut v: u128) {
 }
 
 /// Write a sorted run: (state difference, count) as two varints per record. Returns its bytes.
-fn write_run(path: &Path, entries: &[(Key, u128)]) -> std::io::Result<u64> {
+pub(crate) fn write_run(path: &Path, entries: &[(Key, u128)]) -> std::io::Result<u64> {
     let mut buf = Vec::with_capacity(entries.len() * 16);
     let mut prev: Key = 0;
     for &(k, c) in entries {
@@ -166,14 +166,14 @@ fn write_run(path: &Path, entries: &[(Key, u128)]) -> std::io::Result<u64> {
 }
 
 /// A sorted run being read back.
-struct RunReader {
+pub(crate) struct RunReader {
     r: BufReader<File>,
     prev: Key,
-    head: Option<(Key, u128)>,
+    pub(crate) head: Option<(Key, u128)>,
 }
 
 impl RunReader {
-    fn open(path: &Path) -> RunReader {
+    pub(crate) fn open(path: &Path) -> RunReader {
         let r = BufReader::with_capacity(READ_BUF, File::open(path).expect("open run"));
         let mut rr = RunReader { r, prev: 0, head: None };
         rr.advance();
@@ -197,7 +197,7 @@ impl RunReader {
         }
     }
 
-    fn advance(&mut self) {
+    pub(crate) fn advance(&mut self) {
         self.head = self.varint().map(|d| {
             let k = self.prev + d as Key;
             self.prev = k;

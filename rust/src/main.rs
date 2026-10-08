@@ -1,9 +1,12 @@
 //! `meanders-rs [N] [--from M] [--threads T] [--check] [--two-moduli] [--presize]
-//! [--spill DIR [--cap N | --mem-gb G] [--all]]`. With `--all`, one out-of-core sweep for N
+//! [--spill DIR [--cap N | --mem-gb G] [--all]]
+//! [--mitm B] [--store DIR --horizon B [--cap N | --mem-gb G]]`. With `--all`, one out-of-core sweep for N
 //! also prints A(m) for every m ≤ N.: print Arnold's numbers (OEIS A005316)
 //! for `n = M, …, N`, computed by the parallel transfer matrix.
 
 mod mitm;
+mod mitm_store;
+mod store;
 mod ooc;
 mod par;
 mod serial;
@@ -25,6 +28,15 @@ fn main() {
     let cap: Option<usize> = flag("--cap");
     let mem_gb: Option<f64> = arg("--mem-gb").and_then(|v| v.parse().ok());
     let all = args.iter().any(|a| a == "--all");
+    if let (Some(root), Some(b)) = (arg("--store"), arg("--horizon").and_then(|v| v.parse::<usize>().ok())) {
+        let cap = cap.unwrap_or_else(|| ((mem_gb.unwrap_or(16.0) * 1e9 / (4096.0 * 120.0)) as usize).max(1024));
+        mitm_store::extend(std::path::Path::new(&root), b, threads, cap, &mut |line| {
+            println!("{line}");
+            use std::io::Write;
+            let _ = std::io::stdout().flush();
+        });
+        return;
+    }
     if let Some(b) = arg("--mitm").and_then(|v| v.parse::<usize>().ok()) {
         let t = std::time::Instant::now();
         println!("# n\tcount\tcheck\tforward_states\tbackward_states\tthreads={threads}");
