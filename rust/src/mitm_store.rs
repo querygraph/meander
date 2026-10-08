@@ -13,7 +13,7 @@
 //! dot product `F_{⌈n/2⌉} · G^{n%2}_{⌊n/2⌋}` (`meet` in `Arnold/TM/Middle.lean`), checked by the
 //! second split `F_{⌈n/2⌉−1} · G_{⌊n/2⌋+1}`.
 
-use crate::state::{CLOSE, INIT, OPEN, Word, decode, depth, encode, predecessors};
+use crate::state::{CLOSE, INIT, OPEN, Word, encode};
 use crate::store::{self, Layer};
 use crate::word::{Key64 as Key, narrow, successors, widen};
 use std::collections::BTreeMap;
@@ -184,10 +184,9 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
             let lower = old.filter(|_| r <= m.rmax[p]).map(|b| b.saturating_sub(r));
             let upper = target.saturating_sub(r);
             let back = move |k: Key, emit: &mut dyn FnMut(Key)| {
-                predecessors(&decode(widen(k)), |t: Word| {
-                    let d = depth(&t);
-                    if d <= upper && lower.is_none_or(|lo| d > lo) {
-                        emit(narrow(encode(&t)));
+                crate::bits::predecessors(k, upper, |t| {
+                    if lower.is_none_or(|lo| crate::bits::depth(t) > lo) {
+                        emit(t);
                     }
                 });
             };

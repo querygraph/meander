@@ -15,7 +15,7 @@
 //! backward layer and the small forward layers are held at once.
 
 use crate::ooc::{SHARDS, Table, hash, shard_of};
-use crate::state::{CLOSE, INIT, OPEN, Word, decode, depth, encode, predecessors};
+use crate::state::{CLOSE, INIT, OPEN, Word, encode};
 use crate::word::{Key64 as Key, narrow, successors, widen};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -178,11 +178,7 @@ pub fn run(horizon: usize, threads: usize, mut report: impl FnMut(&Row)) {
             // G_{r+1}: predecessors, kept if a forward layer can still meet them.
             let bound = horizon.saturating_sub(r + 1);
             let back = move |k: Key, emit: &mut dyn FnMut(Key)| {
-                predecessors(&decode(widen(k)), |t: Word| {
-                    if depth(&t) <= bound {
-                        emit(narrow(encode(&t)));
-                    }
-                });
+                crate::bits::predecessors(k, bound, |t| emit(t));
             };
             g = step(g, threads, &back);
             r += 1;

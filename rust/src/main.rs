@@ -4,6 +4,7 @@
 //! also prints A(m) for every m ≤ N.: print Arnold's numbers (OEIS A005316)
 //! for `n = M, …, N`, computed by the parallel transfer matrix.
 
+mod bits;
 mod mitm;
 mod mitm_store;
 mod store;
@@ -171,6 +172,72 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The packed-bit backward step equals the reference one on every state within 14 bridges.
+    #[test]
+    fn packed_predecessors_match_reference() {
+        use crate::state::{Word, decode, depth, encode, predecessors};
+        use crate::word::narrow;
+        use std::collections::BTreeSet;
+        let mut layer = vec![crate::state::INIT];
+        let mut all = BTreeSet::new();
+        for _ in 0..14 {
+            let mut next = Vec::new();
+            for &k in &layer {
+                crate::word::successors(100, 0, k, |k2| next.push(k2));
+            }
+            next.sort_unstable();
+            next.dedup();
+            all.extend(next.iter().copied());
+            layer = next;
+        }
+        for &k in &all {
+            let w = decode(k);
+            assert_eq!(crate::bits::depth(narrow(k)), depth(&w));
+            let mut want = BTreeSet::new();
+            predecessors(&w, |t: Word| {
+                want.insert(narrow(encode(&t)));
+            });
+            let mut got = BTreeSet::new();
+            crate::bits::predecessors(narrow(k), usize::MAX, |t| {
+                assert!(got.insert(t), "duplicate predecessor");
+            });
+            assert_eq!(got.iter().map(|&t| crate::word::widen(t)).collect::<Vec<_>>(), want.iter().map(|&t| crate::word::widen(t)).collect::<Vec<_>>(), "predecessors of {k:#x} (as u128 keys)");
+            // the depth bound filters exactly
+            let bound = depth(&w);
+            let mut kept = BTreeSet::new();
+            crate::bits::predecessors(narrow(k), bound, |t| {
+                kept.insert(t);
+            });
+            let expect: BTreeSet<_> =
+                want.iter().copied().filter(|&t| crate::bits::depth(t) <= bound).collect();
+            assert_eq!(kept, expect);
+        }
+    }
+
+    /// A store built to 20 and extended to 24 holds the same values as one built at 24, and
+    /// every value matches the known one and its second split.
+    #[test]
+    fn store_extends_stepwise() {
+        let base = std::env::temp_dir().join(format!("meanders-store-test-{}", std::process::id()));
+        let (a, b) = (base.join("a"), base.join("b"));
+        for (dir, horizons) in [(&a, vec![20, 24]), (&b, vec![24])] {
+            for h in horizons {
+                crate::mitm_store::extend(dir, h, 3, 64, &mut |_| {});
+            }
+        }
+        let va = std::fs::read_to_string(a.join("values")).unwrap();
+        assert_eq!(va, std::fs::read_to_string(b.join("values")).unwrap());
+        for line in va.lines().filter(|l| !l.starts_with('#')) {
+            let f: Vec<&str> = line.split('\t').collect();
+            let n: usize = f[0].parse().unwrap();
+            assert_eq!(f[1].parse::<u128>().unwrap(), KNOWN[n], "A({n})");
+            if f[2] != "-" {
+                assert_eq!(f[2], f[1], "second split of A({n})");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

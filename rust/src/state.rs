@@ -211,6 +211,7 @@ pub fn final_key() -> Key {
     encode(&Word { w, len: 1, h: 0 })
 }
 
+#[cfg(test)]
 /// Prefix balances of a word without `E`: `bal[i]` = (number of `(`) − (number of `)`) in
 /// positions `0..i`.
 fn balances(s: &Word) -> [i32; 65] {
@@ -221,6 +222,7 @@ fn balances(s: &Word) -> [i32; 65] {
     bal
 }
 
+#[cfg(test)]
 /// The fewest bridges that build state `s` (a word without `E`) from the west: each piece of
 /// river west of the cut joins two open arcs, and needs one bridge if they are on opposite sides
 /// of the road and two if they are on the same side. The pieces joining opposite sides are the
@@ -229,6 +231,7 @@ pub fn depth(s: &Word) -> usize {
     s.len - balances(s)[s.h] as usize
 }
 
+#[cfg(test)]
 /// `emit(t)` for every state `t` with a bridge step `t → s` (the inverse of the bridge cases of
 /// `successors`), for words without `E`. Viability is not applied.
 pub fn predecessors(s: &Word, mut emit: impl FnMut(Word)) {
