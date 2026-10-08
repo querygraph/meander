@@ -1,7 +1,8 @@
 #!/bin/sh
 # Benchmark the meander counters on this machine.
 #
-#   bench/run.sh [--rust A-B] [--oxcaml A-B] [--lean A-B] [--threads T] [--label NAME]
+#   bench/run.sh [--rust A-B] [--rust-presize A-B] [--oxcaml A-B] [--lean A-B] [--threads T]
+#                [--label NAME]
 #
 # Each implementation counts n = A, ..., B, one n per process, and every count is checked
 # against the OEIS values in bench/oeis-a005316.txt. Results go to
@@ -12,10 +13,11 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 HOST=$(hostname -s)
 LABEL=$(date -u +%Y%m%d-%H%M)
 THREADS=""
-RUST="" OXCAML="" LEAN=""
+RUST="" RUSTP="" OXCAML="" LEAN=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --rust) RUST=$2; shift 2 ;;
+    --rust-presize) RUSTP=$2; shift 2 ;;
     --oxcaml) OXCAML=$2; shift 2 ;;
     --lean) LEAN=$2; shift 2 ;;
     --threads) THREADS=$2; shift 2 ;;
@@ -59,6 +61,11 @@ fi
 if [ -n "$RUST" ]; then
   for n in $(range "$RUST"); do
     run rust "$n" "$ROOT/rust/target/release/meanders-rs" "$n" --from "$n" --threads "$T"
+  done
+fi
+if [ -n "$RUSTP" ]; then
+  for n in $(range "$RUSTP"); do
+    run rust-presize "$n" "$ROOT/rust/target/release/meanders-rs" "$n" --from "$n" --threads "$T" --presize
   done
 fi
 if [ -n "$OXCAML" ]; then

@@ -1,4 +1,4 @@
-//! `meanders-rs [N] [--from M] [--threads T] [--check] [--two-moduli]`: print Arnold's numbers (OEIS A005316)
+//! `meanders-rs [N] [--from M] [--threads T] [--check] [--two-moduli] [--presize]`: print Arnold's numbers (OEIS A005316)
 //! for `n = M, …, N`, computed by the parallel transfer matrix.
 
 mod par;
@@ -15,10 +15,11 @@ fn main() {
         .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |p| p.get()));
     let check = args.iter().any(|a| a == "--check");
     let two = args.iter().any(|a| a == "--two-moduli");
+    let presize = args.iter().any(|a| a == "--presize");
     println!("# n\tcount\tpeak_states\ttotal_states\tseconds\tthreads={threads}");
     for m in from..=n {
         let t = std::time::Instant::now();
-        let s = par::count(m, threads, two);
+        let s = par::count(m, threads, two, presize);
         let secs = t.elapsed().as_secs_f64();
         if check {
             assert_eq!(s.count, serial::count(m).0, "parallel and serial disagree at n = {m}");
@@ -47,8 +48,9 @@ mod tests {
     #[test]
     fn parallel_matches_known_values_with_both_moduli() {
         for (m, &v) in KNOWN.iter().enumerate() {
-            assert_eq!(crate::par::count(m, 4, false).count, v, "n = {m}");
-            assert_eq!(crate::par::count(m, 4, true).count, v, "n = {m}, two moduli");
+            assert_eq!(crate::par::count(m, 4, false, false).count, v, "n = {m}");
+            assert_eq!(crate::par::count(m, 4, true, false).count, v, "n = {m}, two moduli");
+            assert_eq!(crate::par::count(m, 3, true, true).count, v, "n = {m}, presized");
         }
     }
 

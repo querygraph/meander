@@ -1,0 +1,6 @@
+# host=morrobay cpu=Intel(R) Xeon(R) W-2191B CPU @ 2.30GHz logical_cpus=36 memory_gb=128 threads=36 date=2026-10-08T04:13:41Z
+# code: rust/ (with --presize), oxcaml/ and bench/ from the working tree after 910fcf2, synced to the machine
+impl	n	count	oeis	peak_states	seconds	max_rss_gib
+rust	40	165597452660771610	ok	22007687	3.31	1.72
+rust-presize	40	165597452660771610	ok	22007687	2.90	1.49
+oxcaml	40	165597452660771610	ok	22007687	2.29	1.93

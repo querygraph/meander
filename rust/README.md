@@ -15,7 +15,9 @@ cargo test --release
 ```
 
 Options: `--threads T` (default: all logical CPUs), `--two-moduli` (force the exact two-sweep
-count even when one would do), `--check`. Output is tab-separated: `n`, the count, the largest
+count even when one would do), `--check`, and `--presize`: allocate each layer's tables once, at a
+size predicted from the previous layers' growth, instead of growing them on demand. Pre-sizing is
+20–28% faster but needs about a third more memory for large `n` (see the repository README). Output is tab-separated: `n`, the count, the largest
 layer (states), the total number of states over all layers, and seconds.
 
 ## The state

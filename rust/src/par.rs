@@ -44,18 +44,25 @@ fn shard_of(hv: u64) -> usize {
 
 /// An open-addressing table of `(state, count)` with linear probing, keys and counts in
 /// separate arrays. A slot stores `key + 1`, so an empty slot is `0` and a new table is lazily
-/// zeroed memory. Tables start small and grow by half when 80% full, so a layer is built while
-/// the previous one is freed shard by shard. The size need not be a power of two.
+/// zeroed memory. By default tables start small and grow by half when 80% full, so a layer is
+/// built while the previous one is freed shard by shard. With `--presize`, each table is
+/// allocated at its first insert with `plan` slots, predicted from the growth of the previous
+/// layers as in the OxCaml program, so it rarely grows. The size need not be a power of two.
 #[derive(Default)]
 pub struct Table {
     keys: Vec<Key>,
     cnts: Vec<u64>,
     len: usize,
+    plan: usize,
 }
 
 impl Table {
     fn with_slots(slots: usize) -> Table {
-        Table { keys: vec![0; slots], cnts: vec![0; slots], len: 0 }
+        Table { keys: vec![0; slots], cnts: vec![0; slots], len: 0, plan: 0 }
+    }
+
+    fn planned(plan: usize) -> Table {
+        Table { plan, ..Table::default() }
     }
 
     #[inline(always)]
@@ -94,7 +101,8 @@ impl Table {
     }
 
     fn grow<const M61: bool>(&mut self) {
-        let old = std::mem::replace(self, Table::with_slots((self.keys.len() * 3 / 2).max(64)));
+        let slots = if self.keys.is_empty() { self.plan } else { self.keys.len() * 3 / 2 };
+        let old = std::mem::replace(self, Table::with_slots(slots.max(64)));
         for (k, c) in old.iter() {
             self.add::<M61>(k, hash(k), c);
         }
@@ -115,14 +123,25 @@ pub struct Stats {
     pub total_states: usize,
 }
 
+/// Slots per shard for the next layer: the layer-to-layer growth ratio extrapolated
+/// geometrically, clamped to `[0.25, 2.5]`, at load 0.75 (the OxCaml program's rule).
+fn predict_slots(size: usize, prev: usize, prev2: usize) -> usize {
+    let r = if prev > 0 { size as f64 / prev as f64 } else { 2.5 };
+    let r_prev = if prev2 > 0 { prev as f64 / prev2 as f64 } else { r };
+    let r_next = (r * r / r_prev).clamp(0.25, 2.5);
+    ((size as f64 * r_next / SHARDS as f64 / 0.75).ceil() as usize).max(64)
+}
+
 /// One sweep for `m` crossings, with counts modulo `2^64` or `2^61 - 1`.
-fn sweep<const M61: bool>(m: usize, threads: usize) -> (u64, usize, usize) {
+fn sweep<const M61: bool>(m: usize, threads: usize, presize: bool) -> (u64, usize, usize) {
     let mut layer: Vec<Mutex<Table>> = (0..SHARDS).map(|_| Mutex::new(Table::default())).collect();
     let init = narrow(INIT);
     layer[shard_of(hash(init))].lock().unwrap().add::<M61>(init, hash(init), 1);
     let (mut peak, mut total) = (1usize, 0usize);
+    let (mut size, mut prev, mut prev2) = (1usize, 0usize, 0usize);
     for x in 0..=m {
-        let next: Vec<Mutex<Table>> = (0..SHARDS).map(|_| Mutex::new(Table::default())).collect();
+        let plan = if presize { predict_slots(size, prev, prev2) } else { 0 };
+        let next: Vec<Mutex<Table>> = (0..SHARDS).map(|_| Mutex::new(Table::planned(plan))).collect();
         let claim = AtomicUsize::new(0);
         std::thread::scope(|sc| {
             for _ in 0..threads {
@@ -167,7 +186,9 @@ fn sweep<const M61: bool>(m: usize, threads: usize) -> (u64, usize, usize) {
             }
         });
         layer = next;
-        let size: usize = layer.iter().map(|t| t.lock().unwrap().len).sum();
+        prev2 = prev;
+        prev = size;
+        size = layer.iter().map(|t| t.lock().unwrap().len).sum();
         peak = peak.max(size);
         total += size;
     }
@@ -186,10 +207,10 @@ pub fn crt(a: u64, b: u64) -> u128 {
 
 /// Count the meanders with `m` crossings on `threads` threads. A second sweep modulo
 /// `2^61 - 1` runs only when the count might reach `2^64` (`m ≥ 44`; A005316(44) < 2^64).
-pub fn count(m: usize, threads: usize, force_two: bool) -> Stats {
-    let (a, peak, total) = sweep::<false>(m, threads);
+pub fn count(m: usize, threads: usize, force_two: bool, presize: bool) -> Stats {
+    let (a, peak, total) = sweep::<false>(m, threads, presize);
     let count = if m >= 44 || force_two {
-        let (b, _, _) = sweep::<true>(m, threads);
+        let (b, _, _) = sweep::<true>(m, threads, presize);
         crt(a, b)
     } else {
         a as u128

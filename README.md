@@ -112,11 +112,39 @@ Both programs scale to the physical cores and no further (`n = 40`):
 | Rust | 20.1 s | 5.9 s | 3.4 s | 2.9 s | 3.2 s |
 | OxCaml | 20.2 s | 5.5 s | 2.8 s | 2.2 s | 2.2 s |
 
-OxCaml is written with OxCaml's data-race-free `Parallel` scheduler and capsules. On one thread
-the two programs are equally fast; OxCaml scales better, probably because it pre-sizes each
-layer's tables from the previous layers, so a shard rarely rehashes while its lock is held. It
-needs more memory. Details are in
-[`rust/README.md`](rust/README.md) and [`oxcaml/README.md`](oxcaml/README.md).
+### Why OxCaml was faster: an experiment
+
+OxCaml is written with OxCaml's data-race-free `Parallel` scheduler and capsules. In the runs
+above it was 15–30% faster than Rust and used more memory. The two programs differ in one design
+choice: Rust grows each shard's table on demand (by half when 80% full), while OxCaml predicts each
+layer's size from the previous layers' growth and allocates every table once. Rust's `--presize`
+option adopts OxCaml's rule unchanged. Interleaved runs on the same machine (time, peak memory):
+
+| n | Rust | Rust `--presize` | OxCaml |
+|---|---|---|---|
+| 40 | 3.6 s, 1.8 GiB | 2.9 s, 1.5 GiB | 2.2 s, 1.8 GiB |
+| 42 | 6.1 s, 2.6 GiB | 5.3 s, 2.9 GiB | 5.3 s, 3.9 GiB |
+| 44 | 29.9 s, 5.9 GiB | 22.1 s, 6.5 GiB | 25.4 s, 9.3 GiB |
+| 46 | 79.8 s, 12.6 GiB | 57.3 s, 17.0 GiB | 64.7 s, 20.5 GiB |
+
+| threads (n = 40) | 1 | 4 | 9 | 18 | 36 |
+|---|---|---|---|---|---|
+| Rust | 21.3 s | 6.1 s | 3.5 s | 3.0 s | 3.3 s |
+| Rust `--presize` | 17.0 s | 4.8 s | 2.8 s | 2.4 s | 2.9 s |
+| OxCaml | 20.4 s | 5.6 s | 2.8 s | 2.2 s | 2.3 s |
+
+Pre-sizing accounts for the difference. It makes Rust 20–28% faster at every thread count, so
+the cost it removes is the rehashing itself (each state is otherwise moved several times as its
+table grows), not just waiting on locks. With it, Rust is the fastest for `n ≥ 44` and on a single
+thread. OxCaml still wins for small `n` on many threads, where Rust's per-layer overheads
+(spawning its threads and allocating their batch buffers anew for every point) matter most;
+OxCaml keeps one worker pool and its buffers for the whole run.
+
+Pre-sizing costs memory, because each table is allocated at its final size while the previous
+layer is still being drained: 17.0 against 12.6 GiB at `n = 46`. OxCaml needs more still, because
+its freed tables return to the system only after a major garbage collection, while Rust frees them
+at once. Rust grows on demand by default, so the largest `n` fits in memory; use `--presize` when
+time matters more than memory.
 
 ## Related work
 
