@@ -1,5 +1,6 @@
 //! `meanders-rs [N] [--from M] [--threads T] [--check] [--two-moduli] [--presize]
-//! [--spill DIR [--cap N | --mem-gb G]]`: print Arnold's numbers (OEIS A005316)
+//! [--spill DIR [--cap N | --mem-gb G] [--all]]`. With `--all`, one out-of-core sweep for N
+//! also prints A(m) for every m ≤ N.: print Arnold's numbers (OEIS A005316)
 //! for `n = M, …, N`, computed by the parallel transfer matrix.
 
 mod ooc;
@@ -22,6 +23,7 @@ fn main() {
     let spill: Option<String> = arg("--spill");
     let cap: Option<usize> = flag("--cap");
     let mem_gb: Option<f64> = arg("--mem-gb").and_then(|v| v.parse().ok());
+    let all = args.iter().any(|a| a == "--all");
     println!("# n\tcount\tpeak_states\ttotal_states\tseconds\tthreads={threads}");
     for m in from..=n {
         let t = std::time::Instant::now();
@@ -37,13 +39,19 @@ fn main() {
                 assert_eq!(s.count, serial::count(m).0, "out-of-core and serial disagree at n = {m}");
             }
             println!(
-                "{m}\t{}\t{}\t{}\t{secs:.3}\tspilled={} disk_peak_gb={:.2}",
+                "{m}\t{}\t{}\t{}\t{secs:.3}\tspilled={} bytes_per_record={:.1} disk_peak_gb={:.2}",
                 s.count,
                 s.peak_states,
                 s.total_states,
                 s.spilled_records,
+                s.spilled_bytes as f64 / s.spilled_records.max(1) as f64,
                 s.spilled_bytes_peak as f64 / 1e9
             );
+            if all {
+                for (j, a) in s.all.iter().enumerate() {
+                    println!("all\t{j}\t{a}");
+                }
+            }
             continue;
         }
         let s = par::count(m, threads, two, presize);
@@ -87,6 +95,8 @@ mod tests {
         for (m, &v) in KNOWN.iter().enumerate().take(27) {
             assert_eq!(crate::ooc::count(m, 3, 4, &dir).count, v, "n = {m}, spilling");
         }
+        let s = crate::ooc::count(26, 3, 4, &dir);
+        assert_eq!(s.all, KNOWN[..27].to_vec(), "every A(m), m <= 26, from one sweep");
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "run files left behind");
         let _ = std::fs::remove_dir(&dir);
     }

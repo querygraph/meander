@@ -3,8 +3,19 @@
 //! The next layer is built in memory exactly as in `par.rs`: 4,096 hash shards, each an
 //! open-addressing table behind its own lock. Here a shard has a cap on its entries. When an
 //! insert takes it past the cap, the table is swapped out under the lock, and the worker sorts it
-//! by state and writes it to disk as a *run* of `(state: u64, count: u128)` records, 24 bytes
-//! each, outside the lock. Counts are exact, so one sweep suffices for every `n`.
+//! by state and writes it to disk as a *run*, outside the lock. Counts are exact, so one sweep
+//! suffices for every `n`.
+//!
+//! A run stores each record as two LEB128 varints: the difference from the previous state (the
+//! states are sorted, so it is positive) and the count. Shards are chosen by a hash of the state,
+//! so a run's states spread over the whole key range and a difference still takes about 6 bytes;
+//! the larger saving is the count, which takes 7 to 10 bytes instead of 16.
+//!
+//! One sweep also yields every smaller `n`. The bridge steps do not depend on `n`, and pruning
+//! never changes the count of a state that survives it, so after `m` bridges the layer holds the
+//! same counts in every sweep for `n ≥ m`. After `m` bridges exactly one state can still finish
+//! with `m` crossings: one matched pair of open arcs, above and below the road for odd `m`, both
+//! below for even `m`. Its count is A(m), so `count` reads A(1), …, A(n) off a single sweep.
 //!
 //! A shard of the next layer is then its runs on disk plus the table left in memory. When that
 //! layer is processed, a worker reads the shard as a k-way merge of the sorted runs and the
@@ -27,7 +38,6 @@ const SHARD_BITS: u32 = 12;
 const SHARDS: usize = 1 << SHARD_BITS;
 const BATCH: usize = 128;
 const MAX_LOAD: f64 = 0.8;
-const RECORD: usize = 24;
 const READ_BUF: usize = 1 << 20;
 
 #[inline(always)]
@@ -110,41 +120,81 @@ struct Frozen {
     rest: Vec<(Key, u128)>,
 }
 
-fn write_run(path: &Path, entries: &[(Key, u128)]) -> std::io::Result<()> {
-    let mut buf = Vec::with_capacity(entries.len() * RECORD);
+#[inline(always)]
+fn put_varint(buf: &mut Vec<u8>, mut v: u128) {
+    while v >= 0x80 {
+        buf.push((v as u8) | 0x80);
+        v >>= 7;
+    }
+    buf.push(v as u8);
+}
+
+/// Write a sorted run: (state difference, count) as two varints per record. Returns its bytes.
+fn write_run(path: &Path, entries: &[(Key, u128)]) -> std::io::Result<u64> {
+    let mut buf = Vec::with_capacity(entries.len() * 16);
+    let mut prev: Key = 0;
     for &(k, c) in entries {
-        buf.extend_from_slice(&k.to_le_bytes());
-        buf.extend_from_slice(&c.to_le_bytes());
+        put_varint(&mut buf, (k - prev) as u128);
+        put_varint(&mut buf, c);
+        prev = k;
     }
     let mut w = BufWriter::new(File::create(path)?);
     w.write_all(&buf)?;
-    w.flush()
+    w.flush()?;
+    Ok(buf.len() as u64)
 }
 
 /// A sorted run being read back.
 struct RunReader {
     r: BufReader<File>,
+    prev: Key,
     head: Option<(Key, u128)>,
 }
 
 impl RunReader {
     fn open(path: &Path) -> RunReader {
         let r = BufReader::with_capacity(READ_BUF, File::open(path).expect("open run"));
-        let mut rr = RunReader { r, head: None };
+        let mut rr = RunReader { r, prev: 0, head: None };
         rr.advance();
         rr
     }
 
-    fn advance(&mut self) {
-        let mut b = [0u8; RECORD];
-        self.head = match self.r.read_exact(&mut b) {
-            Ok(()) => Some((
-                Key::from_le_bytes(b[..8].try_into().unwrap()),
-                u128::from_le_bytes(b[8..].try_into().unwrap()),
-            )),
-            Err(_) => None,
-        };
+    /// The next varint, or `None` at the end of the run.
+    fn varint(&mut self) -> Option<u128> {
+        let (mut v, mut shift) = (0u128, 0);
+        let mut b = [0u8; 1];
+        loop {
+            if self.r.read_exact(&mut b).is_err() {
+                assert!(shift == 0, "run file ends inside a record");
+                return None;
+            }
+            v |= ((b[0] & 0x7f) as u128) << shift;
+            if b[0] < 0x80 {
+                return Some(v);
+            }
+            shift += 7;
+        }
     }
+
+    fn advance(&mut self) {
+        self.head = self.varint().map(|d| {
+            let k = self.prev + d as Key;
+            self.prev = k;
+            let c = self.varint().expect("run file ends inside a record");
+            (k, c)
+        });
+    }
+}
+
+/// The one state, after `m ≥ 1` bridges, from which the east end can finish a river with `m`
+/// crossings: a matched pair of open arcs, one above and one below the road for odd `m` (the east
+/// end closes the upper one), both below for even `m` (it closes the top one below).
+fn finishing_state(m: usize) -> Key {
+    use crate::state::{CLOSE, OPEN, Word, encode};
+    let mut w = [0u8; 64];
+    w[0] = OPEN;
+    w[1] = CLOSE;
+    narrow(encode(&Word { w, len: 2, h: m % 2 }))
 }
 
 /// Visit the states of a frozen shard in increasing order, each once, with its total count.
@@ -181,7 +231,10 @@ pub struct Stats {
     pub peak_states: usize,
     pub total_states: usize,
     pub spilled_records: u64,
+    pub spilled_bytes: u64,
     pub spilled_bytes_peak: u64,
+    /// A(m) for m = 0, …, n, read off this one sweep.
+    pub all: Vec<u128>,
 }
 
 /// Count the meanders with `m` crossings, keeping at most `cap` states in memory per shard of
@@ -190,6 +243,7 @@ pub fn count(m: usize, threads: usize, cap: usize, dir: &Path) -> Stats {
     fs::create_dir_all(dir).expect("create spill directory");
     let run_id = AtomicU64::new(0);
     let spilled = AtomicU64::new(0);
+    let spilled_bytes = AtomicU64::new(0);
     let on_disk = AtomicU64::new(0);
     let disk_peak = AtomicU64::new(0);
     let mut layer: Vec<Mutex<Frozen>> = (0..SHARDS).map(|_| Mutex::new(Frozen::default())).collect();
@@ -197,16 +251,20 @@ pub fn count(m: usize, threads: usize, cap: usize, dir: &Path) -> Stats {
     layer[shard_of(hash(init))].lock().unwrap().rest.push((init, 1));
     let (mut peak, mut total) = (1usize, 0usize);
     let visited = AtomicUsize::new(0);
+    let mut all = vec![0u128; m + 1];
+    all[0] = 1;
+    let found = Mutex::new(0u128);
     for x in 0..=m {
+        let target = if x >= 1 && x < m { Some(finishing_state(x)) } else { None };
         let next: Vec<Mutex<Shard>> = (0..SHARDS).map(|_| Mutex::new(Shard::default())).collect();
         let claim = AtomicUsize::new(0);
         let spill = |d: usize, table: Table| {
             let entries = table.sorted();
             let id = run_id.fetch_add(1, Ordering::Relaxed);
             let path = dir.join(format!("run-{x:02}-{d:04}-{id}.bin"));
-            write_run(&path, &entries).expect("write run");
+            let bytes = write_run(&path, &entries).expect("write run");
             spilled.fetch_add(entries.len() as u64, Ordering::Relaxed);
-            let bytes = (entries.len() * RECORD) as u64;
+            spilled_bytes.fetch_add(bytes, Ordering::Relaxed);
             disk_peak.fetch_max(on_disk.fetch_add(bytes, Ordering::Relaxed) + bytes, Ordering::Relaxed);
             next[d].lock().unwrap().runs.push(path);
         };
@@ -240,6 +298,9 @@ pub fn count(m: usize, threads: usize, cap: usize, dir: &Path) -> Stats {
                             .sum();
                         merge(src, |k, c| {
                             visited.fetch_add(1, Ordering::Relaxed);
+                            if Some(k) == target {
+                                *found.lock().unwrap() = c;
+                            }
                             successors(m, x, widen(k), |k2| {
                                 let k2 = narrow(k2);
                                 let hv = hash(k2);
@@ -264,6 +325,9 @@ pub fn count(m: usize, threads: usize, cap: usize, dir: &Path) -> Stats {
                 });
             }
         });
+        if target.is_some() {
+            all[x] = std::mem::take(&mut *found.lock().unwrap());
+        }
         // Layer x has now been read in full, so its size (distinct states) is known exactly.
         if x > 0 {
             let size = visited.swap(0, Ordering::Relaxed);
@@ -307,6 +371,11 @@ pub fn count(m: usize, threads: usize, cap: usize, dir: &Path) -> Stats {
         peak_states: peak,
         total_states: total,
         spilled_records: spilled.load(Ordering::Relaxed),
+        spilled_bytes: spilled_bytes.load(Ordering::Relaxed),
+        all: {
+            all[m] = count;
+            all
+        },
         spilled_bytes_peak: disk_peak.load(Ordering::Relaxed),
     }
 }
