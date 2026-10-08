@@ -31,11 +31,14 @@ fn main() {
     let all = args.iter().any(|a| a == "--all");
     if let (Some(root), Some(b)) = (arg("--store"), arg("--horizon").and_then(|v| v.parse::<usize>().ok())) {
         let cap = cap.unwrap_or_else(|| ((mem_gb.unwrap_or(16.0) * 1e9 / (4096.0 * 120.0)) as usize).max(1024));
-        mitm_store::extend(std::path::Path::new(&root), b, threads, cap, &mut |line| {
+        let outcome = mitm_store::extend(std::path::Path::new(&root), b, threads, cap, &mut |line| {
             println!("{line}");
             use std::io::Write;
             let _ = std::io::stdout().flush();
         });
+        if outcome == mitm_store::Outcome::Paused {
+            std::process::exit(3);
+        }
         return;
     }
     if let Some(b) = arg("--mitm").and_then(|v| v.parse::<usize>().ok()) {
@@ -237,6 +240,36 @@ mod tests {
                 assert_eq!(f[2], f[1], "second split of A({n})");
             }
         }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Pausing at a layer boundary and resuming gives the same store as an uninterrupted run,
+    /// also after an interrupted step left stale runs behind.
+    #[test]
+    fn store_pauses_and_resumes() {
+        use crate::mitm_store::{Outcome, extend};
+        let base = std::env::temp_dir().join(format!("meanders-pause-test-{}", std::process::id()));
+        let (a, b) = (base.join("a"), base.join("b"));
+        extend(&b, 22, 3, 64, &mut |_| {});
+        std::fs::create_dir_all(&a).unwrap();
+        let pause = a.join("PAUSE");
+        let outcome = extend(&a, 22, 3, 64, &mut |line| {
+            if line.starts_with("G1   5") {
+                std::fs::write(&pause, "").unwrap();
+            }
+        });
+        assert_eq!(outcome, Outcome::Paused);
+        // A crash in the middle of the next step leaves runs in its scratch directory.
+        let tmp = a.join("G1").join("006").join("tmp");
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(tmp.join("0000-0.run"), [1u8, 2, 3]).unwrap();
+        std::fs::remove_file(&pause).unwrap();
+        assert_eq!(extend(&a, 22, 3, 64, &mut |_| {}), Outcome::Complete);
+        assert!(!tmp.exists(), "stale runs removed");
+        assert_eq!(
+            std::fs::read_to_string(a.join("values")).unwrap(),
+            std::fs::read_to_string(b.join("values")).unwrap()
+        );
         let _ = std::fs::remove_dir_all(&base);
     }
 

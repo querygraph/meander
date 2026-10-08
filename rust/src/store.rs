@@ -108,6 +108,7 @@ pub fn step(
     f: &(dyn Fn(Key, &mut dyn FnMut(Key)) + Sync),
 ) -> StepStats {
     let tmp = dst.join("tmp");
+    let _ = fs::remove_dir_all(&tmp); // runs left by an interrupted step
     fs::create_dir_all(&tmp).expect("create scratch directory");
     let tables: Vec<Mutex<(Table, Vec<PathBuf>)>> =
         (0..SHARDS).map(|_| Mutex::new((Table::default(), Vec::new()))).collect();

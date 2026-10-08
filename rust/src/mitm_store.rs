@@ -109,8 +109,23 @@ fn finishers(p: usize) -> Vec<(Key, u128)> {
     if p == 0 { vec![(pair, 1), (narrow(INIT), 1)] } else { vec![(pair, 1)] }
 }
 
-/// Extend the store at `root` to horizon `target`, computing every new A(n).
-pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut dyn FnMut(&str)) {
+/// Whether a pause was requested: a file `PAUSE` in the store. The run stops at the next layer
+/// boundary, with every finished layer saved; running `extend` again with the same horizon
+/// resumes there.
+fn pause_requested(root: &Path) -> bool {
+    root.join("PAUSE").exists()
+}
+
+/// How `extend` ended.
+#[derive(PartialEq, Debug)]
+pub enum Outcome {
+    Complete,
+    Paused,
+}
+
+/// Extend the store at `root` to horizon `target`, computing every new A(n). Stops early, with
+/// all finished layers saved, if a pause is requested.
+pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut dyn FnMut(&str)) -> Outcome {
     store::raise_fd_limit();
     fs::create_dir_all(root).expect("create store");
     let start = Instant::now();
@@ -118,7 +133,7 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
     let old = m.horizons.last().copied();
     if old.is_some_and(|b| target <= b) {
         out(&format!("store already has horizon {}", old.unwrap()));
-        return;
+        return Outcome::Complete;
     }
     let seg = m.horizons.len();
     let mut done = match m.partial {
@@ -138,6 +153,10 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
         successors(NO_TARGET, 0, widen(k), |k2| emit(narrow(k2)));
     };
     while m.kmax < kmax {
+        if pause_requested(root) {
+            out(&format!("paused before F {} at {:.0} s", m.kmax + 1, start.elapsed().as_secs_f64()));
+            return Outcome::Paused;
+        }
         let src = Layer::new(fdir(root, m.kmax), 1);
         let dst = fdir(root, m.kmax + 1);
         let _ = fs::remove_dir_all(&dst);
@@ -181,6 +200,10 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
             save_values(root, &values);
         }
         for r in (done[p] + 1)..=rmax_new {
+            if pause_requested(root) {
+                out(&format!("paused before G{p} {r} at {:.0} s", start.elapsed().as_secs_f64()));
+                return Outcome::Paused;
+            }
             let lower = old.filter(|_| r <= m.rmax[p]).map(|b| b.saturating_sub(r));
             let upper = target.saturating_sub(r);
             let back = move |k: Key, emit: &mut dyn FnMut(Key)| {
@@ -191,7 +214,7 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
                 });
             };
             let dst = gdir(root, p, r);
-            let _ = fs::remove_file(dst.join("tmp"));
+            let _ = fs::remove_dir_all(dst.join("tmp"));
             for d in 0..crate::ooc::SHARDS {
                 let _ = fs::remove_file(dst.join(format!("{d:04}.{seg}.bin")));
             }
@@ -216,4 +239,5 @@ pub fn extend(root: &Path, target: usize, threads: usize, cap: usize, out: &mut 
     m.partial = None;
     m.save(root);
     out(&format!("horizon {target} complete in {:.0} s", start.elapsed().as_secs_f64()));
+    Outcome::Complete
 }
