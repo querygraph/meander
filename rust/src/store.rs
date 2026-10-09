@@ -223,8 +223,26 @@ impl Layer {
     }
 }
 
+/// The number of states in segment `seg` of the layer in `dir`: from `seg{s}.count`, written by
+/// `step`, or else estimated from the data size (about 4.5 bytes a record in large layers).
+pub fn segment_states(dir: &Path, seg: usize) -> Option<u64> {
+    if let Some(n) = fs::read_to_string(dir.join(format!("seg{seg}.count"))).ok().and_then(|t| t.trim().parse().ok()) {
+        return Some(n);
+    }
+    let len = fs::metadata(dir.join(format!("seg{seg}.dat"))).ok()?.len();
+    Some((len as f64 / 4.5) as u64)
+}
+
+/// How many passes `step` should make so that a layer of about `states` states fits its
+/// tables of `cap` states per shard without spilling (a fifth to spare), at most 16.
+pub fn passes_for(states: u64, cap: usize) -> usize {
+    let per_pass = (SHARDS as f64) * cap as f64 / 1.2;
+    ((states as f64 / per_pass).ceil() as usize).clamp(1, 16)
+}
+
 /// Remove segment `seg` of the layer in `dir`, if present.
 pub fn remove_segment(dir: &Path, seg: usize) {
+    let _ = fs::remove_file(dir.join(format!("seg{seg}.count")));
     let _ = fs::remove_file(dir.join(format!("seg{seg}.idx")));
     let _ = fs::remove_file(dir.join(format!("seg{seg}.dat")));
 }
@@ -297,135 +315,162 @@ pub struct StepStats {
 /// Build segment `seg` of the layer in `dst` from every state of `src`: each state `k` with count
 /// `c` sends `c` to every state `f(k)` emits. Keeps at most `cap` states per target shard in
 /// memory and spills the rest as sorted ranges of one file per worker under `dst/tmp`.
-/// `after_read` runs once the source has been read in full, before compaction (a caller that
-/// no longer needs the source can delete it there, so source and result are never both whole on
-/// disk).
+///
+/// With `passes > 1` the target shards are built in that many contiguous groups, one per pass
+/// over the whole source: each pass applies `f` to every state again but keeps only the targets
+/// in its group. Only that group's tables exist, so each may hold `passes * cap` states in the
+/// memory that `cap` gives all of them, and a layer too big for the tables is built with little
+/// or no spilling. A pass costs a read
+/// of the source and the transitions; a spilled record costs a write, a read and a merge, and
+/// the scratch space.
+///
+/// `after_read` runs once the source has been read in full for the last time, before the last
+/// compaction (a caller that no longer needs the source can delete it there, so source and
+/// result are never both whole on disk).
+#[allow(clippy::too_many_arguments)]
 pub fn step(
     src: Layer,
     dst: &Path,
     seg: usize,
     threads: usize,
     cap: usize,
+    passes: usize,
     f: &(dyn Fn(Key, &mut dyn FnMut(Key)) + Sync),
     after_read: &mut dyn FnMut(),
 ) -> StepStats {
+    let passes = passes.clamp(1, SHARDS);
+    // Only the tables of one pass's shards exist at a time, so each may hold `passes` times
+    // as many states in the same memory.
+    let cap = cap * passes;
     let tmp = dst.join("tmp");
     let _ = fs::remove_dir_all(&tmp); // left by an interrupted step
     fs::create_dir_all(&tmp).expect("create scratch directory");
-    let spills: Vec<Mutex<(File, u64)>> = (0..threads)
-        .map(|w| {
-            let f = OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .read(true)
-                .write(true)
-                .open(tmp.join(format!("w{w}.spill")))
-                .expect("create spill file");
-            Mutex::new((f, 0))
-        })
-        .collect();
-    // Per target shard: the in-memory table and its spilled ranges (worker, offset, length).
-    let tables: Vec<Mutex<(Table, Vec<(usize, u64, u64)>)>> =
-        (0..SHARDS).map(|_| Mutex::new((Table::default(), Vec::new()))).collect();
-    let spilled = AtomicU64::new(0);
-    let claim = AtomicUsize::new(0);
-    let worker_id = AtomicUsize::new(0);
-    std::thread::scope(|sc| {
-        for _ in 0..threads {
-            sc.spawn(|| {
-                let me = worker_id.fetch_add(1, Ordering::Relaxed);
-                let mut bufs: Vec<Vec<(Key, u64, u128)>> = (0..SHARDS).map(|_| Vec::new()).collect();
-                let mut bytes = Vec::new();
-                let mut flush = |d: usize, buf: &mut Vec<(Key, u64, u128)>| {
-                    let full = {
-                        let mut t = tables[d].lock().unwrap();
-                        for &(k, hv, c) in buf.iter() {
-                            t.0.add(k, hv, c);
-                        }
-                        if t.0.len > cap { Some(std::mem::take(&mut t.0)) } else { None }
-                    };
-                    buf.clear();
-                    if let Some(t) = full {
-                        bytes.clear();
-                        spilled.fetch_add(encode(&mut bytes, t.sorted()), Ordering::Relaxed);
-                        let off = {
-                            let mut g = spills[me].lock().unwrap();
-                            append(&mut g, &bytes, "spill")
-                        };
-                        tables[d].lock().unwrap().1.push((me, off, bytes.len() as u64));
-                    }
-                };
-                loop {
-                    let s = claim.fetch_add(1, Ordering::Relaxed);
-                    if s >= SHARDS {
-                        break;
-                    }
-                    src.read_shard(s, |k, c| {
-                        f(k, &mut |k2| {
-                            let hv = hash(k2);
-                            let d = shard_of(hv);
-                            let buf = &mut bufs[d];
-                            if buf.capacity() == 0 {
-                                buf.reserve_exact(BATCH);
-                            }
-                            buf.push((k2, hv, c));
-                            if buf.len() == BATCH {
-                                flush(d, buf);
-                            }
-                        });
-                    });
-                }
-                for d in 0..SHARDS {
-                    if !bufs[d].is_empty() {
-                        let mut b = std::mem::take(&mut bufs[d]);
-                        flush(d, &mut b);
-                    }
-                }
-            });
-        }
-    });
-    drop(src);
-    after_read();
-    let spill_files: Vec<File> = spills.into_iter().map(|m| m.into_inner().unwrap().0).collect();
-    // Compact: merge each shard's spilled ranges and remainder, and append it to the segment.
     let writer = SegmentWriter::create(dst, seg);
     let states = AtomicU64::new(0);
-    let claim = AtomicUsize::new(0);
-    std::thread::scope(|sc| {
-        for _ in 0..threads {
-            sc.spawn(|| {
-                let mut out = Vec::new();
-                loop {
-                    let d = claim.fetch_add(1, Ordering::Relaxed);
-                    if d >= SHARDS {
-                        break;
+    let spilled = AtomicU64::new(0);
+    let mut src = Some(src);
+    for pass in 0..passes {
+        let (lo, hi) = (pass * SHARDS / passes, (pass + 1) * SHARDS / passes);
+        let spills: Vec<Mutex<(File, u64)>> = (0..threads)
+            .map(|w| {
+                let f = OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .read(true)
+                    .write(true)
+                    .open(tmp.join(format!("w{w}.spill")))
+                    .expect("create spill file");
+                Mutex::new((f, 0))
+            })
+            .collect();
+        // Per target shard: the in-memory table and its spilled ranges (worker, offset, length).
+        let tables: Vec<Mutex<(Table, Vec<(usize, u64, u64)>)>> =
+            (0..SHARDS).map(|_| Mutex::new((Table::default(), Vec::new()))).collect();
+        let claim = AtomicUsize::new(0);
+        let worker_id = AtomicUsize::new(0);
+        let source = src.as_ref().unwrap();
+        std::thread::scope(|sc| {
+            for _ in 0..threads {
+                sc.spawn(|| {
+                    let me = worker_id.fetch_add(1, Ordering::Relaxed);
+                    let mut bufs: Vec<Vec<(Key, u64, u128)>> = (0..SHARDS).map(|_| Vec::new()).collect();
+                    let mut bytes = Vec::new();
+                    let mut flush = |d: usize, buf: &mut Vec<(Key, u64, u128)>| {
+                        let full = {
+                            let mut t = tables[d].lock().unwrap();
+                            for &(k, hv, c) in buf.iter() {
+                                t.0.add(k, hv, c);
+                            }
+                            if t.0.len > cap { Some(std::mem::take(&mut t.0)) } else { None }
+                        };
+                        buf.clear();
+                        if let Some(t) = full {
+                            bytes.clear();
+                            spilled.fetch_add(encode(&mut bytes, t.sorted()), Ordering::Relaxed);
+                            let off = {
+                                let mut g = spills[me].lock().unwrap();
+                                append(&mut g, &bytes, "spill")
+                            };
+                            tables[d].lock().unwrap().1.push((me, off, bytes.len() as u64));
+                        }
+                    };
+                    loop {
+                        let s = claim.fetch_add(1, Ordering::Relaxed);
+                        if s >= SHARDS {
+                            break;
+                        }
+                        source.read_shard(s, |k, c| {
+                            f(k, &mut |k2| {
+                                let hv = hash(k2);
+                                let d = shard_of(hv);
+                                if d < lo || d >= hi {
+                                    return;
+                                }
+                                let buf = &mut bufs[d];
+                                if buf.capacity() == 0 {
+                                    buf.reserve_exact(BATCH);
+                                }
+                                buf.push((k2, hv, c));
+                                if buf.len() == BATCH {
+                                    flush(d, buf);
+                                }
+                            });
+                        });
                     }
-                    let (table, ranges) = std::mem::take(&mut *tables[d].lock().unwrap());
-                    let rest = table.sorted();
-                    if rest.is_empty() && ranges.is_empty() {
-                        continue;
+                    for d in lo..hi {
+                        if !bufs[d].is_empty() {
+                            let mut b = std::mem::take(&mut bufs[d]);
+                            flush(d, &mut b);
+                        }
                     }
-                    let runs: Vec<RangeReader<'_>> =
-                        ranges.iter().map(|&(w, off, len)| RangeReader::new(&spill_files[w], off, len)).collect();
-                    out.clear();
-                    let mut prev: Key = 0;
-                    let mut n = 0u64;
-                    merge_runs(runs, rest, |k, c| {
-                        put_varint(&mut out, (k - prev) as u128);
-                        put_varint(&mut out, c);
-                        prev = k;
-                        n += 1;
-                    });
-                    states.fetch_add(n, Ordering::Relaxed);
-                    writer.put(d, &out);
-                }
-            });
+                });
+            }
+        });
+        if pass + 1 == passes {
+            src = None;
+            after_read();
         }
-    });
+        let spill_files: Vec<File> = spills.into_iter().map(|m| m.into_inner().unwrap().0).collect();
+        // Compact: merge each shard's spilled ranges and remainder, and append it to the segment.
+        let claim = AtomicUsize::new(lo);
+        std::thread::scope(|sc| {
+            for _ in 0..threads {
+                sc.spawn(|| {
+                    let mut out = Vec::new();
+                    loop {
+                        let d = claim.fetch_add(1, Ordering::Relaxed);
+                        if d >= hi {
+                            break;
+                        }
+                        let (table, ranges) = std::mem::take(&mut *tables[d].lock().unwrap());
+                        let rest = table.sorted();
+                        if rest.is_empty() && ranges.is_empty() {
+                            continue;
+                        }
+                        let runs: Vec<RangeReader<'_>> =
+                            ranges.iter().map(|&(w, off, len)| RangeReader::new(&spill_files[w], off, len)).collect();
+                        out.clear();
+                        let mut prev: Key = 0;
+                        let mut n = 0u64;
+                        merge_runs(runs, rest, |k, c| {
+                            put_varint(&mut out, (k - prev) as u128);
+                            put_varint(&mut out, c);
+                            prev = k;
+                            n += 1;
+                        });
+                        states.fetch_add(n, Ordering::Relaxed);
+                        writer.put(d, &out);
+                    }
+                });
+            }
+        });
+    }
+    drop(src);
     let bytes = writer.finish();
-    drop(spill_files);
+    let states = states.load(Ordering::Relaxed);
+    let _ = fs::write(dst.join(format!("seg{seg}.count")), format!("{states}\n"));
     let _ = fs::remove_dir_all(&tmp);
-    StepStats { states: states.load(Ordering::Relaxed), bytes, spilled_records: spilled.load(Ordering::Relaxed) }
+    StepStats { states, bytes, spilled_records: spilled.load(Ordering::Relaxed) }
 }
 
 /// Σ_s a(s) · b(s), by a merge-join of each shard of the two layers.

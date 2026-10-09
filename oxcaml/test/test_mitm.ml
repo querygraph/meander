@@ -223,8 +223,19 @@ let test_pause_discard (par @ local) =
   if Sys.file_exists tmp then fail "store: stale spill kept";
   if read (Filename.concat a "values") <> read (Filename.concat b "values")
   then fail "store: pause and resume change the values";
+  (* several passes per step, forced or chosen, give the same values as one *)
+  let check d passes =
+    let root = Filename.concat base d in
+    ignore
+      (Store.extend par ~passes ~root ~target:22 ~threads:4 ~cap:2 ~out:ignore () : Store.outcome);
+    if read (Filename.concat root "values") <> read (Filename.concat b "values")
+    then fail "store: passes (%s) change the values" d
+  in
+  check "one" 1;
+  check "three" 3;
+  check "auto" 0;
   Store.remove_all base;
-  print_endline "store: discard and pause/resume ok"
+  print_endline "store: discard, pause/resume and passes ok"
 ;;
 
 let () =

@@ -5,7 +5,8 @@
    split. meanders_ox --store DIR --horizon B [--mem-gb G | --cap N]: create or extend the
    persistent meet-in-the-middle store in DIR to horizon B; [--discard] deletes each backward
    layer once used (the store then cannot be extended), [--min-free-gb G] pauses when the disk
-   has less free space. A file PAUSE in DIR pauses at the next layer boundary (exit code 3);
+   has less free space, [--passes P] builds each step in P passes over its source ([auto]:
+   enough passes per step to avoid spilling; default 1). A file PAUSE in DIR pauses at the next layer boundary (exit code 3);
    the same command resumes. *)
 
 (* MEANDERS_GC=1: print GC statistics at exit. *)
@@ -82,6 +83,11 @@ let () =
            par
            ~discard
            ~min_free
+           ~passes:
+             (match arg "--passes" args with
+              | Some "auto" -> 0
+              | Some v -> int_of_string v
+              | None -> 1)
            ~root
            ~target:b
            ~threads

@@ -140,6 +140,27 @@ pub struct Options {
     pub discard: bool,
     /// Pause, as for `PAUSE`, when the disk has less free space than this.
     pub min_free: u64,
+    /// Passes per step (`store::step`): a fixed number, or 0 to choose per step from the sizes
+    /// of the two previous layers, enough to avoid spilling. On the M1 Max laptop at horizon
+    /// 50 with a cap a quarter of the largest layers' needs, `auto` spilled nothing but took
+    /// 598 s against 497 s for one pass (the transitions are recomputed per pass) at the same
+    /// peak disk, so one pass is the default; `auto` may pay off where the disk, not the CPU,
+    /// is the bottleneck.
+    pub passes: usize,
+}
+
+/// The passes for building segment `seg` of the layer after `prev1` (whose predecessor is
+/// `prev2`): its size is predicted from their growth, as in the sweep's table sizing.
+fn choose_passes(opt: &Options, prev1: &Path, prev2: Option<&Path>, seg: usize) -> usize {
+    if opt.passes > 0 {
+        return opt.passes;
+    }
+    let Some(s1) = store::segment_states(prev1, seg) else { return 1 };
+    let ratio = match prev2.and_then(|d| store::segment_states(d, seg)) {
+        Some(s2) if s2 > 0 => (s1 as f64 / s2 as f64).clamp(0.25, 4.0),
+        _ => 2.5,
+    };
+    store::passes_for((s1 as f64 * ratio) as u64, opt.cap)
 }
 
 /// Whether to stop at this layer boundary: a file `PAUSE` in the store, or too little free disk.
@@ -203,14 +224,20 @@ pub fn extend(root: &Path, target: usize, opt: Options, out: &mut dyn FnMut(&str
             out(&format!("paused before F {} at {:.0} s", m.kmax + 1, start.elapsed().as_secs_f64()));
             return Outcome::Paused;
         }
+        let passes = choose_passes(
+            &opt,
+            &fdir(root, m.kmax),
+            m.kmax.checked_sub(1).map(|k| fdir(root, k)).as_deref(),
+            0,
+        );
         let src = Layer::new(fdir(root, m.kmax), 1);
         let dst = fdir(root, m.kmax + 1);
         let _ = fs::remove_dir_all(&dst);
-        let st = store::step(src, &dst, 0, threads, cap, &bridge, &mut || {});
+        let st = store::step(src, &dst, 0, threads, cap, passes, &bridge, &mut || {});
         m.kmax += 1;
         m.save(root);
         out(&format!(
-            "F {:3}  states {:>13}  {:>10.2} GB  {:>8.0} s",
+            "F {:3}  states {:>13}  {:>10.2} GB  passes {passes:>2}  {:>8.0} s",
             m.kmax,
             st.states,
             st.bytes as f64 / 1e9,
@@ -263,14 +290,15 @@ pub fn extend(root: &Path, target: usize, opt: Options, out: &mut dyn FnMut(&str
             let _ = fs::remove_dir_all(dst.join("tmp"));
             store::remove_segment(&dst, seg);
             let src_dir = gdir(root, p, r - 1);
-            let st = store::step(g(r - 1), &dst, seg, threads, cap, &back, &mut || {
+            let passes = choose_passes(&opt, &src_dir, (r >= 2).then(|| gdir(root, p, r - 2)).as_deref(), seg);
+            let st = store::step(g(r - 1), &dst, seg, threads, cap, passes, &back, &mut || {
                 // The source's values were taken when it was built; with discard it is not needed.
                 if opt.discard && r >= 2 {
                     let _ = fs::remove_dir_all(&src_dir);
                 }
             });
             out(&format!(
-                "G{p} {:3}  new states {:>13}  {:>10.2} GB  spilled {:>13}  {:>8.0} s",
+                "G{p} {:3}  new states {:>13}  {:>10.2} GB  spilled {:>13}  passes {passes:>2}  {:>8.0} s",
                 r,
                 st.states,
                 st.bytes as f64 / 1e9,

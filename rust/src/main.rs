@@ -1,6 +1,6 @@
 //! `meanders-rs [N] [--from M] [--threads T] [--check] [--two-moduli] [--presize]
 //! [--spill DIR [--cap N | --mem-gb G] [--all]]
-//! [--mitm B] [--store DIR --horizon B [--cap N | --mem-gb G] [--discard] [--min-free-gb G]]`. With `--all`, one out-of-core sweep for N
+//! [--mitm B] [--store DIR --horizon B [--cap N | --mem-gb G] [--discard] [--min-free-gb G] [--passes P|auto]]`. With `--all`, one out-of-core sweep for N
 //! also prints A(m) for every m ≤ N.: print Arnold's numbers (OEIS A005316)
 //! for `n = M, …, N`, computed by the parallel transfer matrix.
 
@@ -36,6 +36,11 @@ fn main() {
             cap,
             discard: args.iter().any(|a| a == "--discard"),
             min_free: (arg("--min-free-gb").and_then(|v| v.parse::<f64>().ok()).unwrap_or(40.0) * 1e9) as u64,
+            passes: match arg("--passes").as_deref() {
+                Some("auto") => 0,
+                Some(v) => v.parse().expect("--passes N or --passes auto"),
+                None => 1,
+            },
         };
         let outcome = mitm_store::extend(std::path::Path::new(&root), b, opt, &mut |line| {
             println!("{line}");
@@ -226,7 +231,7 @@ mod tests {
     }
 
     fn test_opt() -> crate::mitm_store::Options {
-        crate::mitm_store::Options { threads: 3, cap: 64, discard: false, min_free: 0 }
+        crate::mitm_store::Options { threads: 3, cap: 64, discard: false, min_free: 0, passes: 1 }
     }
 
     /// A store built to 20 and extended to 24 holds the same values as one built at 24, and
@@ -267,6 +272,20 @@ mod tests {
         for p in ["G0", "G1"] {
             assert_eq!(std::fs::read_dir(a.join(p)).unwrap().count(), 1, "{p} keeps its last layer");
         }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Building each step in several passes over its source gives the same store as one pass,
+    /// whether the passes are forced or chosen from the layer sizes.
+    #[test]
+    fn store_passes_match() {
+        let base = std::env::temp_dir().join(format!("meanders-passes-test-{}", std::process::id()));
+        let read = |d: &str| std::fs::read_to_string(base.join(d).join("values")).unwrap();
+        for (d, passes) in [("one", 1), ("three", 3), ("auto", 0)] {
+            crate::mitm_store::extend(&base.join(d), 24, crate::mitm_store::Options { cap: 2, passes, ..test_opt() }, &mut |_| {});
+        }
+        assert_eq!(read("one"), read("three"));
+        assert_eq!(read("one"), read("auto"));
         let _ = std::fs::remove_dir_all(&base);
     }
 

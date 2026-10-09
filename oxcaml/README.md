@@ -209,7 +209,7 @@ a second split.
 ```sh
 ./_build/default/bin/meanders_ox.exe --mitm 44                  # in memory, all A(n), n <= 44
 ./_build/default/bin/meanders_ox.exe --store DIR --horizon 48 [--mem-gb 16 | --cap N] \
-    [--discard] [--min-free-gb G]
+    [--discard] [--min-free-gb G] [--passes P|auto]
 ```
 
 - **The store** keeps every layer on disk and is extended in place: `--horizon 50` on a
@@ -220,6 +220,11 @@ a second split.
     `--min-free-gb`; either way the exit code is 3. The same command resumes.
   - `--discard` deletes each backward layer once the next one has read it. That needs far
     less disk, but the store can no longer be extended.
+  - `--passes P` builds each step in P passes over its source, one group of target shards
+    per pass. Each group's tables get P times the cap, so a big layer spills less, but the
+    transitions are recomputed on every pass. `auto` picks enough passes per step to avoid
+    spilling. One pass is the default. In Rust on the laptop (horizon 50, cap 60000), `auto`
+    spilled nothing but took 598 s against 497 s, with the same peak disk.
 - **Keys** are 63-bit OCaml ints with h in the top 5 bits. A key with h ≥ 16 is therefore a
   negative int, so the store orders states as unsigned numbers throughout: radix sort,
   merges, joins and varint differences.

@@ -455,6 +455,25 @@ let free_bytes path =
 
 let seg_dat dir s = Filename.concat dir (Printf.sprintf "seg%d.dat" s)
 let seg_idx dir s = Filename.concat dir (Printf.sprintf "seg%d.idx" s)
+let seg_count dir s = Filename.concat dir (Printf.sprintf "seg%d.count" s)
+
+(* The number of states in segment [s] of the layer in [dir]: from [seg{s}.count], written by
+   [step], or else estimated from the data size (about 4.5 bytes a record in large layers). *)
+let segment_states dir s =
+  match int_of_string_opt (String.trim (read_file (seg_count dir s))) with
+  | Some n -> Some n
+  | None | (exception Sys_error _) ->
+    (match Unix.stat (seg_dat dir s) with
+     | st -> Some (Float.to_int (Float.of_int st.st_size /. 4.5))
+     | exception Unix.Unix_error _ -> None)
+;;
+
+(* How many passes [step] should make so that a layer of about [states] states fits its
+   tables of [cap] states per shard without spilling (a fifth to spare), at most 16. *)
+let passes_for states cap =
+  let per_pass = Float.of_int shards *. Float.of_int cap /. 1.2 in
+  Int.max 1 (Int.min 16 (Float.to_int (Float.ceil (Float.of_int states /. per_pass))))
+;;
 
 (* One segment: its data file and the (offset, length) of every shard, flattened. *)
 type segment =
@@ -496,6 +515,7 @@ let open_fds (l : layer) =
 let close_fds fds = Array.iter Unix.close fds
 
 let remove_segment dir s =
+  (try Sys.remove (seg_count dir s) with Sys_error _ -> ());
   (try Sys.remove (seg_idx dir s) with Sys_error _ -> ());
   try Sys.remove (seg_dat dir s) with Sys_error _ -> ()
 ;;
@@ -679,7 +699,16 @@ let[@inline always] push (par @ local) (buf : raw S.t @ local) wk sink k2 ch cl 
 
 let read_buffer_size = 1 lsl 16
 
-let step_worker (par @ local) (buf : raw S.t @ local) ~(src : layer) ~sink ~claim ~(job : job) =
+let step_worker
+  (par @ local)
+  (buf : raw S.t @ local)
+  ~(src : layer)
+  ~sink
+  ~claim
+  ~(job : job)
+  ~lo
+  ~hi
+  =
   let rbuf = Bytes.create read_buffer_size in
   let wk = make_wctx () in
   let fds = open_fds src in
@@ -700,9 +729,13 @@ let step_worker (par @ local) (buf : raw S.t @ local) ~(src : layer) ~sink ~clai
             let k = key r
             and ch = chi r
             and cl = clo r in
+            let emit t =
+              let d = shard_of (hash t) in
+              if d >= lo && d < hi then push par buf wk sink t ch cl
+            in
             if backward
-            then Back.predecessors ~lower ~bound:upper k (fun t -> push par buf wk sink t ch cl)
-            else Back.successors k (fun t -> push par buf wk sink t ch cl);
+            then Back.predecessors ~lower ~bound:upper k emit
+            else Back.successors k emit;
             advance r
           done)
       done;
@@ -762,9 +795,16 @@ type stats =
 
 (* Build segment [seg] of the layer in [dst] from every state of [src]. [want]: the initial
    slots of each target table (predicted from the last layer sizes, so that tables rarely
-   rehash); a table that has spilled is emptied and reused. [after_read] runs once the
-   source has been read in full, before compaction (a caller that no longer needs the source
-   can delete it there, so that source and result are never both whole on disk). *)
+   rehash); a table that has spilled is emptied and reused.
+
+   With [passes > 1] the target shards are built in that many contiguous groups, one per pass
+   over the whole source: each pass applies the transitions to every state again but keeps only
+   the targets in its group. Only that group's tables exist, so each may hold [passes * cap]
+   states in the memory that [cap] gives all of them, and a layer too big for the tables is
+   built with little or no spilling (a pass costs a read of the source and the transitions; a spilled record costs a
+   write, a read, a merge and scratch space). [after_read] runs once the source has been read
+   for the last time, before the last compaction (a caller that no longer needs the source can
+   delete it there, so that source and result are never both whole on disk). *)
 let step
   (par @ local)
   (ctx : Mitm.ctx)
@@ -773,67 +813,80 @@ let step
   ~seg
   ~cap
   ~want
+  ~passes
   ~(job : job)
   ~(after_read : unit -> unit)
   =
+  let passes = Int.max 1 (Int.min shards passes) in
+  (* Only the tables of one pass's shards exist at a time, so each may hold [passes] times as
+     many states in the same memory. *)
+  let cap = cap * passes in
   let tmp = Filename.concat dst "tmp" in
   remove_all tmp;
   mkdir_p tmp;
   let spill_path = Filename.concat tmp "spill" in
-  let sfd = Unix.openfile spill_path [ O_WRONLY; O_CREAT; O_TRUNC ] 0o644 in
-  let sink =
-    { tables =
-        Iarray.init shards ~f:(fun _ ->
-          With_mutex.create (fun () -> { tbl = Mitm.Table.create want; runs = [] }))
-    ; spill = With_mutex.create (fun () -> { afd = sfd; apos = 0; aidx = [||] })
-    ; cap
-    ; spilled = Atomic.make 0
-    }
-  in
-  let claim = Atomic.make 0 in
-  (S.fori [@kind float64]) par ~pivots:ctx.pivots ((S.slice [@kind float64]) ctx.scratch)
-    ~f:(fun par _ buf -> step_worker par buf ~src ~sink ~claim ~job);
-  after_read ();
-  Unix.close (With_mutex.destroy (Parallel.sync par) sink.spill).afd;
-  (* Compact: merge each shard's runs and remainder and append it to the segment. *)
   let dfd = create_dat dst seg in
   let writer =
     With_mutex.create (fun () -> { afd = dfd; apos = 0; aidx = Array.make (2 * shards) 0 })
   in
   let states = Atomic.make 0
-  and claim = Atomic.make 0 in
-  let tables = sink.tables in
-  Parallel.for_ par ~start:0 ~stop:ctx.threads ~f:(fun par _ ->
-    let wb = Bytes.create write_buffer_size in
-    let out = { ob = Bytes.create (1 lsl 20) } in
-    let scratch = { v = ucreate 0; vn = 0 } in
-    let rfd = Unix.openfile spill_path [ O_RDONLY ] 0 in
-    let rec loop (par @ local) =
-      let d = Atomic.fetch_and_add claim 1 in
-      if d < shards
-      then (
-        let a = With_mutex.destroy (Parallel.sync par) (Iarray.get tables d) in
-        let rest = sorted_with scratch a.tbl in
-        a.tbl <- Mitm.Table.create 0;
-        let _, nrest = rest in
-        if nrest > 0 || a.runs <> []
-        then (
-          let readers =
-            List.rev_map
-              (fun (off, len) -> open_range rfd (Bytes.create read_buffer_size) off len)
-              a.runs
-          in
-          let n, len = merge_into wb out rest readers in
-          ignore (Atomic.fetch_and_add states n : int);
-          ignore (append par writer d (Bytes.unsafe_to_string out.ob) len : int));
-        loop par)
+  and spilled = ref 0 in
+  for pass = 0 to passes - 1 do
+    let lo = pass * shards / passes
+    and hi = (pass + 1) * shards / passes in
+    let sfd = Unix.openfile spill_path [ O_WRONLY; O_CREAT; O_TRUNC ] 0o644 in
+    let sink =
+      { tables =
+          Iarray.init shards ~f:(fun _ ->
+            With_mutex.create (fun () -> { tbl = Mitm.Table.create want; runs = [] }))
+      ; spill = With_mutex.create (fun () -> { afd = sfd; apos = 0; aidx = [||] })
+      ; cap
+      ; spilled = Atomic.make 0
+      }
     in
-    loop par;
-    Unix.close rfd);
+    let claim = Atomic.make 0 in
+    (S.fori [@kind float64]) par ~pivots:ctx.pivots ((S.slice [@kind float64]) ctx.scratch)
+      ~f:(fun par _ buf -> step_worker par buf ~src ~sink ~claim ~job ~lo ~hi);
+    if pass = passes - 1 then after_read ();
+    Unix.close (With_mutex.destroy (Parallel.sync par) sink.spill).afd;
+    (* Compact: merge each shard's runs and remainder and append it to the segment. *)
+    let claim = Atomic.make lo in
+    let tables = sink.tables in
+    Parallel.for_ par ~start:0 ~stop:ctx.threads ~f:(fun par _ ->
+      let wb = Bytes.create write_buffer_size in
+      let out = { ob = Bytes.create (1 lsl 20) } in
+      let scratch = { v = ucreate 0; vn = 0 } in
+      let rfd = Unix.openfile spill_path [ O_RDONLY ] 0 in
+      let rec loop (par @ local) =
+        let d = Atomic.fetch_and_add claim 1 in
+        if d < hi
+        then (
+          let a = With_mutex.destroy (Parallel.sync par) (Iarray.get tables d) in
+          let rest = sorted_with scratch a.tbl in
+          a.tbl <- Mitm.Table.create 0;
+          let _, nrest = rest in
+          if nrest > 0 || a.runs <> []
+          then (
+            let readers =
+              List.rev_map
+                (fun (off, len) -> open_range rfd (Bytes.create read_buffer_size) off len)
+                a.runs
+            in
+            let n, len = merge_into wb out rest readers in
+            ignore (Atomic.fetch_and_add states n : int);
+            ignore (append par writer d (Bytes.unsafe_to_string out.ob) len : int));
+          loop par)
+      in
+      loop par;
+      Unix.close rfd);
+    spilled := !spilled + Atomic.get sink.spilled
+  done;
   let w = With_mutex.destroy (Parallel.sync par) writer in
   publish w.afd dst seg w.aidx;
+  let states = Atomic.get states in
+  write_atomically (seg_count dst seg) (Printf.sprintf "%d\n" states);
   remove_all tmp;
-  { states = Atomic.get states; bytes = w.apos; spilled_records = Atomic.get sink.spilled }
+  { states; bytes = w.apos; spilled_records = !spilled }
 ;;
 
 (* ---- Dot products ---- *)
@@ -1028,6 +1081,25 @@ let gdir root p r =
 
 let finishers p = List.map (fun k -> k, 1) (Mitm.finishers p)
 
+(* The passes for building segment [seg] of the layer after [prev1] (whose predecessor is
+   [prev2]): its size is predicted from their growth, as in the sweep's table sizing, and the
+   passes are enough to avoid spilling. [forced > 0]: that many instead. *)
+let choose_passes ~forced ~cap prev1 prev2 seg =
+  match forced with
+  | p when p > 0 -> p
+  | _ ->
+    (match segment_states prev1 seg with
+     | None -> 1
+     | Some s1 ->
+       let ratio =
+         match Option.bind prev2 (fun d -> segment_states d seg) with
+         | Some s2 when s2 > 0 ->
+           Float.max 0.25 (Float.min 4.0 (Float.of_int s1 /. Float.of_int s2))
+         | _ -> 2.5
+       in
+       passes_for (Float.to_int (Float.of_int s1 *. ratio)) cap)
+;;
+
 (* How [extend] ended. *)
 type outcome =
   | Complete
@@ -1054,6 +1126,7 @@ let extend
   (par @ local)
   ?(discard = false)
   ?(min_free = 0)
+  ?(passes = 1)
   ~root
   ~target
   ~threads
@@ -1113,6 +1186,14 @@ let extend
       else if pause_requested root ~min_free ~out
       then paused (Printf.sprintf "F %d" (m.kmax + 1))
       else (
+        let np =
+          choose_passes
+            ~forced:passes
+            ~cap
+            (fdir root m.kmax)
+            (if m.kmax >= 1 then Some (fdir root (m.kmax - 1)) else None)
+            0
+        in
         let src = open_layer (fdir root m.kmax) 1 in
         let dst = fdir root (m.kmax + 1) in
         remove_all dst;
@@ -1125,6 +1206,7 @@ let extend
             ~seg:0
             ~cap
             ~want:(predict fhist)
+            ~passes:np
             ~job:{ backward = false; lower = -1; upper = 0 }
             ~after_read:ignore
         in
@@ -1133,10 +1215,11 @@ let extend
         save_manifest root m;
         out
           (Printf.sprintf
-             "F %3d  states %13d  %10.2f GB  %8.0f s"
+             "F %3d  states %13d  %10.2f GB  passes %2d  %8.0f s"
              m.kmax
              st.states
              (Float.of_int st.bytes /. 1e9)
+             np
              (elapsed ()));
         forward () [@nontail])
     in
@@ -1185,6 +1268,14 @@ let extend
           let upper = Int.max 0 (target - r) in
           let dst = gdir root p r in
           let src_dir = gdir root p (r - 1) in
+          let np =
+            choose_passes
+              ~forced:passes
+              ~cap
+              src_dir
+              (if r >= 2 then Some (gdir root p (r - 2)) else None)
+              seg
+          in
           remove_segment dst seg;
           let st =
             step
@@ -1195,6 +1286,7 @@ let extend
               ~seg
               ~cap
               ~want:(predict ghist)
+              ~passes:np
               ~job:{ backward = true; lower; upper }
               ~after_read:(fun () ->
                 (* the source's values were taken when it was built *)
@@ -1203,12 +1295,13 @@ let extend
           ghist := if st.states = 0 then [] else st.states :: !ghist;
           out
             (Printf.sprintf
-               "G%d %3d  new states %13d  %10.2f GB  spilled %13d  %8.0f s"
+               "G%d %3d  new states %13d  %10.2f GB  spilled %13d  passes %2d  %8.0f s"
                p
                r
                st.states
                (Float.of_int st.bytes /. 1e9)
                st.spilled_records
+               np
                (elapsed ()));
           value_at r;
           save_values root values;
