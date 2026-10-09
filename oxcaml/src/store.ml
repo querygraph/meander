@@ -1,0 +1,921 @@
+(* The persistent, stepwise meet-in-the-middle store: the algorithm and the directory layout of
+   rust/src/store.rs and rust/src/mitm_store.rs.
+
+   A store at [root] holds the forward layers [F/kkk], the backward layers [G{p}/rrr] for both
+   sides [p] of the east end, a [manifest] and the computed [values]. It is built for
+   increasing horizons B0 < B1 < ...: segment [i] of a backward layer [G^p_r] holds the states
+   with [B_{i-1} - r < depth <= B_i - r] (all states with [depth <= B0 - r] for [i = 0]).
+
+   A layer is a directory. Its states are split into the 4096 hash shards of [Sweep], and shard
+   [d] is stored as one or more segments, files [dddd.seg.bin], each sorted by state and
+   written as varint (state difference, count) records; a missing file is an empty segment.
+   Segments of one layer hold disjoint sets of states.
+
+   [step] builds one new segment from a source layer: workers stream source shards (each
+   segment in turn: they are disjoint), apply a transition, and add the results into capped
+   in-memory tables, one per target shard, each in its own capsule. A table that grows past
+   the cap is spilled, under its lock, as a sorted run to [dst/tmp]. At the end each target
+   shard's runs and remainder are merged into its one segment file.
+
+   [extend root B'] raises the horizon from B to B'. The forward layers grow by the missing
+   ones. Every backward layer gains one segment: the states newly admitted by B', pushed from
+   ALL segments of the previous layer by the inverse transitions. Existing values never
+   change, so nothing is recomputed. Each new A(n) is the dot product (a merge-join per shard)
+   of F_{ceil(n/2)} and G^{n mod 2}_{floor(n/2)}, checked by the second split
+   F_{ceil(n/2)-1} . G_{floor(n/2)+1}.
+
+   The keys are [Word] keys (63-bit OCaml ints), not Rust's, so the segment files differ
+   from the Rust store's; the [values] files and the per-layer state counts are the same. The
+   manifest's format line says so ([meanders-ox-mitm-1]). *)
+
+open! Await
+module S = Parallel.Arrays.Array.Slice
+module RA = Base.Array (* layout-polymorphic: used on the unboxed [raw] arrays *)
+module Atomic = Portable.Atomic
+module Iarray = Base.Iarray
+module With_mutex = Capsule.Sync.With_mutex
+
+type raw = float#
+
+let shards = Sweep.shards
+let batch = Mitm.batch
+let[@inline always] hash k = Sweep.hash k
+let[@inline always] shard_of hv = Sweep.shard_of hv
+let[@inline always] of_raw f = Sweep.of_raw f
+let[@inline always] uget a i = Sweep.uget a i
+let[@inline always] uset a i v = Sweep.uset a i v
+let ucreate n = Sweep.ucreate n
+let[@inline always] sget buf i = Mitm.sget buf i
+let[@inline always] sset buf i v = Mitm.sset buf i v
+
+(* ---- Sorted runs on disk ---- *)
+
+(* The readers and writers keep their mutable state in unboxed [float#] cells, not in mutable
+   record fields: on arm64 every mutable word store carries a barrier (see [Sweep]), and the
+   state changes for every record. A record is decoded from the byte buffer by pure
+   recursive functions returning unboxed tuples. *)
+
+(* A streaming reader of a sorted varint run. [rbuf] is the caller's read buffer. State
+   cells: position, limit, current key, high limb, low limb, live, end of file. *)
+type reader =
+  { ic : in_channel
+  ; rbuf : Bytes.t
+  ; st : raw array
+  }
+
+let st_pos = 0
+let st_lim = 1
+let st_key = 2
+let st_hi = 3
+let st_lo = 4
+let st_live = 5
+let st_eof = 6
+
+(* The longest record: a 9-byte key difference and an 18-byte count. *)
+let max_record = 32
+let[@inline always] live r = uget r.st st_live <> 0
+let[@inline always] key r = uget r.st st_key
+let[@inline always] chi r = uget r.st st_hi
+let[@inline always] clo r = uget r.st st_lo
+let corrupt () = failwith "Store: run file ends inside a record"
+let[@inline always] byte buf p lim = if p < lim then Char.code (Bytes.unsafe_get buf p) else corrupt ()
+
+(* A varint below 2^62 at [p]: #(value, next position). *)
+let rec dec_small buf p lim v shift =
+  let c = byte buf p lim in
+  let v = v lor ((c land 0x7f) lsl shift) in
+  if c < 0x80 then #(v, p + 1) else dec_small buf (p + 1) lim v (shift + 7)
+;;
+
+(* A two-limb varint at [p]: #(hi, lo, next position). *)
+let rec dec_count buf p lim hi lo shift =
+  let c = byte buf p lim in
+  let b = c land 0x7f in
+  let #(hi, lo) =
+    if shift + 7 <= Limb.bits
+    then #(hi, lo lor (b lsl shift))
+    else if shift >= Limb.bits
+    then #(hi lor (b lsl (shift - Limb.bits)), lo)
+    else #(hi lor (b lsr (Limb.bits - shift)), lo lor ((b lsl shift) land Limb.mask))
+  in
+  if c < 0x80 then #(hi, lo, p + 1) else dec_count buf (p + 1) lim hi lo (shift + 7)
+;;
+
+(* Move the unread bytes to the front and fill the rest of the buffer. *)
+let refill r =
+  let pos = uget r.st st_pos
+  and lim = uget r.st st_lim in
+  let rest = lim - pos in
+  Bytes.blit r.rbuf pos r.rbuf 0 rest;
+  let rec fill n =
+    if n = Bytes.length r.rbuf
+    then n
+    else (
+      let got = input r.ic r.rbuf n (Bytes.length r.rbuf - n) in
+      if got = 0
+      then (
+        uset r.st st_eof 1;
+        n)
+      else fill (n + got))
+  in
+  let n = fill rest in
+  uset r.st st_pos 0;
+  uset r.st st_lim n
+;;
+
+let advance r =
+  if uget r.st st_lim - uget r.st st_pos < max_record && uget r.st st_eof = 0 then refill r;
+  let pos = uget r.st st_pos
+  and lim = uget r.st st_lim in
+  if pos = lim
+  then (
+    uset r.st st_live 0;
+    close_in r.ic)
+  else (
+    let #(d, p) = dec_small r.rbuf pos lim 0 0 in
+    let #(hi, lo, p) = dec_count r.rbuf p lim 0 0 0 in
+    uset r.st st_pos p;
+    uset r.st st_key (uget r.st st_key + d);
+    uset r.st st_hi hi;
+    uset r.st st_lo lo)
+;;
+
+let open_reader rbuf path =
+  let r = { ic = open_in_bin path; rbuf; st = ucreate 7 } in
+  uset r.st st_live 1;
+  advance r;
+  r
+;;
+
+(* A streaming writer of a sorted varint file into the caller's (reused) byte buffer [wb].
+   State cells: position, previous key, records, bytes flushed. *)
+type writer =
+  { oc : out_channel
+  ; wb : Bytes.t
+  ; ws : raw array
+  }
+
+let write_buffer_size = 1 lsl 16
+
+let create_writer wb path = { oc = open_out_bin path; wb; ws = ucreate 4 }
+
+let[@inline always] put wb p c = Bytes.unsafe_set wb p (Char.unsafe_chr c)
+
+let rec put_small wb p v =
+  if v < 0x80
+  then (
+    put wb p v;
+    p + 1)
+  else (
+    put wb p (v land 0x7f lor 0x80);
+    put_small wb (p + 1) (v lsr 7))
+;;
+
+(* The two-limb value hi 2^62 + lo, 7 bits per byte, low bits first. *)
+let rec put_count wb p hi lo =
+  if hi = 0
+  then put_small wb p lo
+  else (
+    put wb p (lo land 0x7f lor 0x80);
+    put_count wb (p + 1) (hi lsr 7) ((lo lsr 7) lor ((hi land 0x7f) lsl (Limb.bits - 7))))
+;;
+
+let flush_writer w =
+  let n = uget w.ws 0 in
+  output w.oc w.wb 0 n;
+  uset w.ws 3 (uget w.ws 3 + n);
+  uset w.ws 0 0
+;;
+
+let push_record w k hi lo =
+  let p = put_small w.wb (uget w.ws 0) (k - uget w.ws 1) in
+  let p = put_count w.wb p hi lo in
+  uset w.ws 0 p;
+  uset w.ws 1 k;
+  uset w.ws 2 (uget w.ws 2 + 1);
+  if p > Bytes.length w.wb - max_record then flush_writer w
+;;
+
+(* Close the file; (records, bytes). *)
+let finish_writer w =
+  flush_writer w;
+  close_out w.oc;
+  uget w.ws 2, uget w.ws 3
+;;
+
+(* ---- Sorting a table ---- *)
+
+(* The entries of a table sorted by key, as (key + 1, hi, lo) triples in a flat array, and
+   their number; the table must not be used afterwards. The entries are compacted to the
+   front of the table's own cells (counting the digits on the way), then sorted by an LSD
+   radix sort with 11-bit digits, skipping the digits that all keys share. A comparison sort
+   was 2.5x slower here (its branches on random keys mispredict half the time); it is used
+   only for small tables. *)
+let radix_bits = 11
+let radix = 1 lsl radix_bits
+let passes = 6 (* 66 bits cover the 62-bit keys *)
+
+(* Quicksort of the first [n] triples of [cells] by key, for small tables (a radix sort's
+   counters would cost more than the data). *)
+let quicksort cells n =
+  let[@inline always] key e = uget cells (3 * e) in
+  let[@inline always] swap a b =
+    let k = RA.unsafe_get cells (3 * a)
+    and h = RA.unsafe_get cells ((3 * a) + 1)
+    and l = RA.unsafe_get cells ((3 * a) + 2) in
+    RA.unsafe_set cells (3 * a) (RA.unsafe_get cells (3 * b));
+    RA.unsafe_set cells ((3 * a) + 1) (RA.unsafe_get cells ((3 * b) + 1));
+    RA.unsafe_set cells ((3 * a) + 2) (RA.unsafe_get cells ((3 * b) + 2));
+    RA.unsafe_set cells (3 * b) k;
+    RA.unsafe_set cells ((3 * b) + 1) h;
+    RA.unsafe_set cells ((3 * b) + 2) l
+  in
+  let rec qsort lo hi =
+    if hi - lo < 16
+    then
+      for i = lo + 1 to hi do
+        let j = ref i in
+        while !j > lo && key (!j - 1) > key !j do
+          swap (!j - 1) !j;
+          decr j
+        done
+      done
+    else (
+      let mid = lo + ((hi - lo) / 2) in
+      if key mid < key lo then swap mid lo;
+      if key hi < key lo then swap hi lo;
+      if key hi < key mid then swap hi mid;
+      let pivot = key mid in
+      let i = ref lo
+      and j = ref hi in
+      while !i <= !j do
+        while key !i < pivot do
+          incr i
+        done;
+        while key !j > pivot do
+          decr j
+        done;
+        if !i <= !j
+        then (
+          swap !i !j;
+          incr i;
+          decr j)
+      done;
+      if !j - lo < hi - !i
+      then (
+        qsort lo !j;
+        qsort !i hi)
+      else (
+        qsort !i hi;
+        qsort lo !j))
+  in
+  qsort 0 (n - 1)
+;;
+
+let small_sort = 1024
+
+let sorted (t : Mitm.Table.t) =
+  let cells = t.cells in
+  let n = t.len in
+  let radix_sort = n > small_sort in
+  let cnt = ucreate (if radix_sort then passes * radix else 0) in
+  let j = ref 0 in
+  for i = 0 to Mitm.Table.slots cells - 1 do
+    let k1 = uget cells (3 * i) in
+    if k1 <> 0
+    then (
+      if !j < i
+      then (
+        RA.unsafe_set cells (3 * !j) (RA.unsafe_get cells (3 * i));
+        RA.unsafe_set cells ((3 * !j) + 1) (RA.unsafe_get cells ((3 * i) + 1));
+        RA.unsafe_set cells ((3 * !j) + 2) (RA.unsafe_get cells ((3 * i) + 2)));
+      if radix_sort
+      then
+        for p = 0 to passes - 1 do
+          let c = (p * radix) + ((k1 lsr (p * radix_bits)) land (radix - 1)) in
+          uset cnt c (uget cnt c + 1)
+        done;
+      incr j)
+  done;
+  if not radix_sort
+  then (
+    quicksort cells n;
+    cells, n)
+  else (
+    let src = ref cells
+    and dst = ref (ucreate (3 * n)) in
+    for p = 0 to passes - 1 do
+      let base = p * radix
+      and shift = p * radix_bits in
+      let first = (uget !src 0 lsr shift) land (radix - 1) in
+      if uget cnt (base + first) <> n
+      then (
+        (* counts to start offsets *)
+        let sum = ref 0 in
+        for d = 0 to radix - 1 do
+          let c = uget cnt (base + d) in
+          uset cnt (base + d) !sum;
+          sum := !sum + c
+        done;
+        let s = !src
+        and o = !dst in
+        for i = 0 to n - 1 do
+          let k1 = uget s (3 * i) in
+          let c = base + ((k1 lsr shift) land (radix - 1)) in
+          let pos = uget cnt c in
+          uset cnt c (pos + 1);
+          RA.unsafe_set o (3 * pos) (RA.unsafe_get s (3 * i));
+          RA.unsafe_set o ((3 * pos) + 1) (RA.unsafe_get s ((3 * i) + 1));
+          RA.unsafe_set o ((3 * pos) + 2) (RA.unsafe_get s ((3 * i) + 2))
+        done;
+        src := o;
+        dst := s)
+    done;
+    !src, n)
+;;
+
+(* Write a table as a sorted run; the number of records. *)
+let write_table wb path t =
+  let cells, n = sorted t in
+  let w = create_writer wb path in
+  for i = 0 to n - 1 do
+    push_record w (uget cells (3 * i) - 1) (uget cells ((3 * i) + 1)) (uget cells ((3 * i) + 2))
+  done;
+  ignore (finish_writer w : int * int);
+  n
+;;
+
+(* ---- Layers ---- *)
+
+type layer =
+  { dir : string
+  ; segments : int
+  }
+
+let file dir d seg = Filename.concat dir (Printf.sprintf "%04d.%d.bin" d seg)
+
+let rec mkdir_p dir =
+  if not (Sys.file_exists dir)
+  then (
+    mkdir_p (Filename.dirname dir);
+    try Sys.mkdir dir 0o755 with
+    | Sys_error _ when Sys.file_exists dir -> ())
+;;
+
+let rec remove_all path =
+  if Sys.file_exists path
+  then
+    if Sys.is_directory path
+    then (
+      Array.iter (fun f -> remove_all (Filename.concat path f)) (Sys.readdir path);
+      Sys.rmdir path)
+    else Sys.remove path
+;;
+
+(* Write the given (state, count) entries, counts below 2^62, as segment [seg] of [dir]. *)
+let write_states dir seg entries =
+  mkdir_p dir;
+  for d = 0 to shards - 1 do
+    let mine =
+      List.sort compare (List.filter (fun (k, _) -> shard_of (hash k) = d) entries)
+    in
+    if mine <> []
+    then (
+      let w = create_writer (Bytes.create 256) (file dir d seg) in
+      List.iter (fun (k, c) -> push_record w k 0 c) mine;
+      ignore (finish_writer w : int * int))
+  done
+;;
+
+(* ---- One step: build a segment from a source layer ---- *)
+
+(* A target shard while a step runs: the capped table and the runs it has spilled. *)
+type acc =
+  { mutable tbl : Mitm.Table.t
+  ; mutable runs : string list
+  }
+
+type tshard = acc With_mutex.t
+
+(* What a step applies to each state: the bridge steps, or the backward steps keeping
+   [lower < depth <= upper]. *)
+type job =
+  { backward : bool
+  ; lower : int
+  ; upper : int
+  }
+
+type sink =
+  { tables : tshard iarray
+  ; tmp : string
+  ; cap : int
+  ; run_id : int Atomic.t
+  ; spilled : int Atomic.t
+  }
+
+(* The slots of a table that will hold [cap] states: load 0.5 when it spills (linear probing
+   slows down sharply near the maximum load 0.8). *)
+let full_slots cap = (2 * cap) + 64
+
+let[@inline never] insert_batch (par @ local) (sink : sink) d b n =
+  let tmp = sink.tmp
+  and cap = sink.cap
+  and run_id = sink.run_id
+  and spilled = sink.spilled in
+  With_mutex.with_lock (Parallel.sync par) (Iarray.get sink.tables d) ~f:(fun _ a ->
+    Mitm.Table.add_batch a.tbl b n;
+    if a.tbl.len > cap
+    then (
+      let t = a.tbl in
+      a.tbl <- Mitm.Table.create (full_slots cap);
+      let id = Atomic.fetch_and_add run_id 1 in
+      let path = Filename.concat tmp (Printf.sprintf "%04d-%d.run" d id) in
+      let n = write_table (Bytes.create write_buffer_size) path t in
+      ignore (Atomic.fetch_and_add spilled n : int);
+      a.runs <- path :: a.runs))
+  [@nontail]
+;;
+
+let[@inline never] flush (par @ local) (buf : raw S.t @ local) sink d =
+  let n = sget buf (Mitm.off_fill + d) in
+  insert_batch par sink d (Mitm.batch_copy buf d n) n;
+  sset buf (Mitm.off_fill + d) 0
+;;
+
+let[@inline always] push (par @ local) (buf : raw S.t @ local) sink k2 ch cl =
+  let d = Mitm.append buf k2 ch cl in
+  if d >= 0 then flush par buf sink d
+;;
+
+let read_buffer_size = 1 lsl 16
+
+let step_worker (par @ local) (buf : raw S.t @ local) ~(src : layer) ~sink ~claim ~(job : job) =
+  let rbuf = Bytes.create read_buffer_size in
+  let backward = job.backward
+  and lower = job.lower
+  and upper = job.upper in
+  let rec claim_loop (par @ local) =
+    let s = Atomic.fetch_and_add claim 1 in
+    if s < shards
+    then (
+      for seg = 0 to src.segments - 1 do
+        let path = file src.dir s seg in
+        if Sys.file_exists path
+        then (
+          let r = open_reader rbuf path in
+          while live r do
+            let k = key r
+            and ch = chi r
+            and cl = clo r in
+            if backward
+            then Back.predecessors ~lower ~bound:upper k (fun t -> push par buf sink t ch cl)
+            else Back.successors k (fun t -> push par buf sink t ch cl);
+            advance r
+          done)
+      done;
+      claim_loop par)
+  in
+  claim_loop par;
+  for d = 0 to shards - 1 do
+    if sget buf (Mitm.off_fill + d) > 0 then flush par buf sink d
+  done
+;;
+
+(* Merge a sorted remainder and sorted runs, adding the counts of equal states, into one file.
+   Returns (distinct states, bytes). *)
+let merge_into wb rbufs path (cells, n) runs =
+  let w = create_writer wb path in
+  let readers = Array.of_list (List.mapi (fun i p -> open_reader rbufs.(i) p) runs) in
+  let nr = Array.length readers in
+  let i = ref 0 in
+  let continue = ref true in
+  while !continue do
+    let m = ref (if !i < n then uget cells (3 * !i) - 1 else max_int) in
+    for j = 0 to nr - 1 do
+      let r = readers.(j) in
+      if live r && key r < !m then m := key r
+    done;
+    if !m = max_int
+    then continue := false
+    else (
+      let k = !m in
+      let ch = ref 0
+      and cl = ref 0 in
+      if !i < n && uget cells (3 * !i) - 1 = k
+      then (
+        ch := uget cells ((3 * !i) + 1);
+        cl := uget cells ((3 * !i) + 2);
+        incr i);
+      for j = 0 to nr - 1 do
+        let r = readers.(j) in
+        while live r && key r = k do
+          let #(h, l) = Limb.add !ch !cl (chi r) (clo r) in
+          ch := h;
+          cl := l;
+          advance r
+        done
+      done;
+      push_record w k !ch !cl)
+  done;
+  finish_writer w
+;;
+
+type stats =
+  { states : int
+  ; bytes : int
+  ; spilled_records : int
+  }
+
+(* Build segment [seg] of the layer in [dst] from every state of [src]. *)
+(* [want]: the initial slots of each target table (predicted from the last layer sizes, so
+   that tables rarely rehash); a table that has spilled restarts at its full size. *)
+let step (par @ local) (ctx : Mitm.ctx) ~(src : layer) ~dst ~seg ~cap ~want ~(job : job) =
+  let tmp = Filename.concat dst "tmp" in
+  mkdir_p tmp;
+  let sink =
+    { tables =
+        Iarray.init shards ~f:(fun _ ->
+          With_mutex.create (fun () -> { tbl = Mitm.Table.create want; runs = [] }))
+    ; tmp
+    ; cap
+    ; run_id = Atomic.make 0
+    ; spilled = Atomic.make 0
+    }
+  in
+  let claim = Atomic.make 0 in
+  (S.fori [@kind float64]) par ~pivots:ctx.pivots ((S.slice [@kind float64]) ctx.scratch)
+    ~f:(fun par _ buf -> step_worker par buf ~src ~sink ~claim ~job);
+  (* Compact: merge each shard's runs and remainder into its segment file. *)
+  let states = Atomic.make 0
+  and bytes = Atomic.make 0
+  and claim = Atomic.make 0 in
+  let tables = sink.tables in
+  Parallel.for_ par ~start:0 ~stop:ctx.threads ~f:(fun par _ ->
+    let wb = Bytes.create write_buffer_size in
+    let rec loop (par @ local) =
+      let d = Atomic.fetch_and_add claim 1 in
+      if d < shards
+      then (
+        let a = With_mutex.destroy (Parallel.sync par) (Iarray.get tables d) in
+        let rest = sorted a.tbl in
+        a.tbl <- Mitm.Table.create 0;
+        let _, nrest = rest in
+        if nrest > 0 || a.runs <> []
+        then (
+          let rbufs =
+            Array.init (List.length a.runs) (fun _ -> Bytes.create read_buffer_size)
+          in
+          let n, b = merge_into wb rbufs (file dst d seg) rest (List.rev a.runs) in
+          ignore (Atomic.fetch_and_add states n : int);
+          ignore (Atomic.fetch_and_add bytes b : int);
+          List.iter (fun p -> try Sys.remove p with Sys_error _ -> ()) a.runs);
+        loop par)
+    in
+    loop par);
+  (try Sys.rmdir tmp with Sys_error _ -> ());
+  { states = Atomic.get states
+  ; bytes = Atomic.get bytes
+  ; spilled_records = Atomic.get sink.spilled
+  }
+;;
+
+(* ---- Dot products ---- *)
+
+(* A growable buffer of (key, hi, lo) triples, one per worker, reused for every shard. *)
+type vec =
+  { mutable v : raw array
+  ; mutable vn : int
+  }
+
+(* Read a whole shard of [l] (all segments; [l] has one, sorted) into [vec]. *)
+let read_all rbuf vec (l : layer) d =
+  let n = ref 0 in
+  for seg = 0 to l.segments - 1 do
+    let path = file l.dir d seg in
+    if Sys.file_exists path
+    then (
+      let r = open_reader rbuf path in
+      while live r do
+        if 3 * !n = RA.length vec.v
+        then (
+          let b = ucreate (2 * RA.length vec.v) in
+          for i = 0 to (3 * !n) - 1 do
+            RA.unsafe_set b i (RA.unsafe_get vec.v i)
+          done;
+          vec.v <- b);
+        let v = vec.v in
+        uset v (3 * !n) (key r);
+        uset v ((3 * !n) + 1) (chi r);
+        uset v ((3 * !n) + 2) (clo r);
+        incr n;
+        advance r
+      done)
+  done;
+  vec.vn <- !n
+;;
+
+(* sum_s a(s) b(s), by a merge-join of each shard: [a] (one segment, sorted) is loaded, and
+   each segment of [b] (sorted, disjoint) is streamed against it. Exact. *)
+let dot (par @ local) (ctx : Mitm.ctx) (a : layer) (b : layer) =
+  let claim = Atomic.make 0 in
+  (S.fori [@kind float64]) par ~pivots:ctx.pivots ((S.slice [@kind float64]) ctx.scratch)
+    ~f:(fun par _ buf ->
+      let off = Mitm.off_res in
+      sset buf off 0;
+      sset buf (off + 1) 0;
+      let rbuf = Bytes.create read_buffer_size in
+      let vec = { v = ucreate 3072; vn = 0 } in
+      let rec loop (par @ local) =
+        let d = Atomic.fetch_and_add claim 1 in
+        if d < shards
+        then (
+          read_all rbuf vec a d;
+          let fv = vec.v
+          and n = vec.vn in
+          if n > 0
+          then
+            for seg = 0 to b.segments - 1 do
+              let path = file b.dir d seg in
+              if Sys.file_exists path
+              then (
+                let r = open_reader rbuf path in
+                let i = ref 0 in
+                while live r do
+                  let k = key r in
+                  while !i < n && uget fv (3 * !i) < k do
+                    incr i
+                  done;
+                  if !i < n && uget fv (3 * !i) = k
+                  then
+                    Mitm.accumulate
+                      buf
+                      off
+                      (uget fv ((3 * !i) + 1))
+                      (uget fv ((3 * !i) + 2))
+                      (chi r)
+                      (clo r);
+                  advance r
+                done)
+            done;
+          loop par)
+      in
+      loop par [@nontail]);
+  let all = (S.slice [@kind float64]) ctx.scratch in
+  let h = ref 0
+  and l = ref 0 in
+  for w = 0 to ctx.threads - 1 do
+    let o = (w * Mitm.region) + Mitm.off_res in
+    let #(h2, l2) = Limb.add !h !l (sget all o) (sget all (o + 1)) in
+    h := h2;
+    l := l2
+  done;
+  Limb.to_string !h !l
+;;
+
+(* ---- Manifest and values ---- *)
+
+type manifest =
+  { mutable horizons : int list (* increasing *)
+  ; mutable kmax : int
+  ; rmax : int array
+  ; mutable partial : (int * int array) option
+  }
+
+let format_line = "format meanders-ox-mitm-1"
+
+let read_file path =
+  let ic = open_in_bin path in
+  let s = really_input_string ic (in_channel_length ic) in
+  close_in ic;
+  s
+;;
+
+let write_atomically path text =
+  let tmp = path ^ ".tmp" in
+  let oc = open_out_bin tmp in
+  output_string oc text;
+  close_out oc;
+  Sys.rename tmp path
+;;
+
+let lines s = List.filter (fun l -> l <> "") (String.split_on_char '\n' s)
+
+let load_manifest root =
+  let m = { horizons = []; kmax = 0; rmax = [| 0; 0 |]; partial = None } in
+  let path = Filename.concat root "manifest" in
+  if Sys.file_exists path
+  then
+    List.iter
+      (fun line ->
+        match String.split_on_char ' ' line with
+        | [ "format"; f ] ->
+          if "format " ^ f <> format_line
+          then failwith ("Store: not a meanders_ox store (" ^ line ^ ")")
+        | [ "horizons"; v ] ->
+          m.horizons
+          <- List.map int_of_string (List.filter (( <> ) "") (String.split_on_char ',' v))
+        | [ "kmax"; v ] -> m.kmax <- int_of_string v
+        | [ "rmax0"; v ] -> m.rmax.(0) <- int_of_string v
+        | [ "rmax1"; v ] -> m.rmax.(1) <- int_of_string v
+        | [ "partial"; v ] ->
+          (match List.map int_of_string (String.split_on_char ',' v) with
+           | [ b; d0; d1 ] -> m.partial <- Some (b, [| d0; d1 |])
+           | _ -> failwith "Store: bad partial line")
+        | _ -> ())
+      (lines (read_file path));
+  m
+;;
+
+let save_manifest root m =
+  let b = Buffer.create 128 in
+  Buffer.add_string b (format_line ^ "\n");
+  Printf.bprintf
+    b
+    "horizons %s\nkmax %d\nrmax0 %d\nrmax1 %d\n"
+    (String.concat "," (List.map string_of_int m.horizons))
+    m.kmax
+    m.rmax.(0)
+    m.rmax.(1);
+  (match m.partial with
+   | Some (t, d) -> Printf.bprintf b "partial %d,%d,%d\n" t d.(0) d.(1)
+   | None -> ());
+  write_atomically (Filename.concat root "manifest") (Buffer.contents b)
+;;
+
+(* values: n -> (count, check), counts as decimal strings. *)
+let load_values root =
+  let path = Filename.concat root "values" in
+  let v = Hashtbl.create 64 in
+  if Sys.file_exists path
+  then
+    List.iter
+      (fun line ->
+        if line.[0] <> '#'
+        then (
+          match String.split_on_char '\t' line with
+          | [ n; c; k ] ->
+            Hashtbl.replace v (int_of_string n) (c, if k = "-" then None else Some k)
+          | _ -> failwith "Store: bad values line"))
+      (lines (read_file path));
+  v
+;;
+
+let save_values root v =
+  let b = Buffer.create 4096 in
+  Buffer.add_string b "# n\tcount\tcheck (the same count through a second split)\n";
+  let ns = List.sort compare (Hashtbl.fold (fun n _ acc -> n :: acc) v []) in
+  List.iter
+    (fun n ->
+      let c, k = Hashtbl.find v n in
+      Printf.bprintf b "%d\t%s\t%s\n" n c (Option.value k ~default:"-"))
+    ns;
+  write_atomically (Filename.concat root "values") (Buffer.contents b)
+;;
+
+let fdir root k = Filename.concat (Filename.concat root "F") (Printf.sprintf "%03d" k)
+
+let gdir root p r =
+  Filename.concat (Filename.concat root (Printf.sprintf "G%d" p)) (Printf.sprintf "%03d" r)
+;;
+
+let finishers p = List.map (fun k -> k, 1) (Mitm.finishers p)
+
+(* Extend the store at [root] to horizon [target], computing every new A(n). *)
+let extend (par @ local) ~root ~target ~threads ~cap ~(out : string -> unit) =
+  mkdir_p root;
+  let start = Unix.gettimeofday () in
+  let elapsed () = Unix.gettimeofday () -. start in
+  let m = load_manifest root in
+  let old = match List.rev m.horizons with b :: _ -> Some b | [] -> None in
+  match old with
+  | Some b when target <= b -> out (Printf.sprintf "store already has horizon %d" b)
+  | _ ->
+    let ctx = Mitm.make_ctx threads in
+    let seg = List.length m.horizons in
+    let fin =
+      match m.partial with
+      | Some (b, d) when b = target -> Array.copy d
+      | _ -> [| 0; 0 |]
+    in
+    m.partial <- Some (target, Array.copy fin);
+    save_manifest root m;
+    let values = load_values root in
+    (* Forward layers: universal, one segment each. *)
+    let kmax = target - (target / 2) in
+    if m.kmax = 0 && not (Sys.file_exists (fdir root 0))
+    then write_states (fdir root 0) 0 [ Back.init, 1 ];
+    (* Initial table sizes, predicted from the recent layer sizes ([Sweep.predict_slots]). *)
+    let predict hist =
+      let w =
+        match !hist with
+        | s :: p :: p2 :: _ -> Sweep.predict_slots ~size:s ~prev:p ~prev2:p2
+        | [ s; p ] -> Sweep.predict_slots ~size:s ~prev:p ~prev2:0
+        | [ s ] -> Sweep.predict_slots ~size:s ~prev:0 ~prev2:0
+        | [] -> 64
+      in
+      (* generous: the sizes of new segments vary more than whole layers do *)
+      Int.max 64 (Int.min (2 * w) (full_slots cap))
+    in
+    let fhist = ref [] in
+    while m.kmax < kmax do
+      let src = { dir = fdir root m.kmax; segments = 1 } in
+      let dst = fdir root (m.kmax + 1) in
+      remove_all dst;
+      let st =
+        step
+          par
+          ctx
+          ~src
+          ~dst
+          ~seg:0
+          ~cap
+          ~want:(predict fhist)
+          ~job:{ backward = false; lower = -1; upper = 0 }
+      in
+      fhist := st.states :: !fhist;
+      m.kmax <- m.kmax + 1;
+      save_manifest root m;
+      out
+        (Printf.sprintf
+           "F %3d  states %13d  %10.2f GB  %8.0f s"
+           m.kmax
+           st.states
+           (Float.of_int st.bytes /. 1e9)
+           (elapsed ()))
+    done;
+    let f k = { dir = fdir root k; segments = 1 } in
+    let newer n = match old with None -> true | Some b -> n > b in
+    for p = 0 to 1 do
+      let rmax_new = (target / 2) + 1 in
+      if seg = 0 && fin.(p) = 0 && not (Sys.file_exists (gdir root p 0))
+      then write_states (gdir root p 0) 0 (finishers p);
+      let g r = { dir = gdir root p r; segments = seg + 1 } in
+      let value_at r =
+        let n = (2 * r) + p in
+        if n <= target && newer n
+        then (
+          let c = dot par ctx (f (r + p)) (g r) in
+          Hashtbl.replace values n (c, None);
+          out (Printf.sprintf "A(%d) = %s" n c));
+        if r + p >= 2 && n >= 2 && n - 2 <= target && newer (n - 2)
+        then (
+          let c = dot par ctx (f (r + p - 2)) (g r) in
+          match Hashtbl.find_opt values (n - 2) with
+          | Some (v, _) ->
+            Hashtbl.replace values (n - 2) (v, Some c);
+            let ok = if v = c then "agrees" else "DISAGREES" in
+            out (Printf.sprintf "A(%d) second split %s: %s" (n - 2) ok c)
+          | None -> ())
+      in
+      let ghist = ref [] in
+      if fin.(p) = 0
+      then (
+        value_at 0;
+        save_values root values);
+      for r = fin.(p) + 1 to rmax_new do
+        let lower =
+          match old with
+          | Some b when r <= m.rmax.(p) -> Int.max 0 (b - r)
+          | _ -> -1
+        in
+        let upper = Int.max 0 (target - r) in
+        let dst = gdir root p r in
+        (try remove_all (Filename.concat dst "tmp") with Sys_error _ -> ());
+        for d = 0 to shards - 1 do
+          let path = file dst d seg in
+          if Sys.file_exists path then Sys.remove path
+        done;
+        let st =
+          step
+            par
+            ctx
+            ~src:(g (r - 1))
+            ~dst
+            ~seg
+            ~cap
+            ~want:(predict ghist)
+            ~job:{ backward = true; lower; upper }
+        in
+        ghist := (if st.states = 0 then [] else st.states :: !ghist);
+        out
+          (Printf.sprintf
+             "G%d %3d  new states %13d  %10.2f GB  spilled %13d  %8.0f s"
+             p
+             r
+             st.states
+             (Float.of_int st.bytes /. 1e9)
+             st.spilled_records
+             (elapsed ()));
+        value_at r;
+        save_values root values;
+        fin.(p) <- r;
+        m.partial <- Some (target, Array.copy fin);
+        save_manifest root m
+      done;
+      m.rmax.(p) <- rmax_new
+    done;
+    m.horizons <- m.horizons @ [ target ];
+    m.partial <- None;
+    save_manifest root m;
+    out (Printf.sprintf "horizon %d complete in %.0f s" target (elapsed ()))
+;;

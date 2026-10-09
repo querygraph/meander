@@ -1,7 +1,7 @@
 (library
  (name meanders)
  (libraries base await capsule parallel parallel.scheduler portable
-  ocaml_intrinsics_kernel stdlib_upstream_compatible)
+  ocaml_intrinsics_kernel stdlib_upstream_compatible unix)
  (preprocess
   (pps ppx_template))
  (ocamlopt_flags

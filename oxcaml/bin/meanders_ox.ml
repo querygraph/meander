@@ -1,5 +1,28 @@
 (* meanders_ox [N] [--from M] [--threads T] [--two-moduli] [--check]: print Arnold's numbers
-   (OEIS A005316) for n = M..N, computed by the parallel transfer matrix. *)
+   (OEIS A005316) for n = M..N, computed by the parallel transfer matrix.
+
+   meanders_ox --mitm B: every A(n), n <= B, by meet in the middle, each checked by a second
+   split. meanders_ox --store DIR --horizon B [--mem-gb G | --cap N]: create or extend the
+   persistent meet-in-the-middle store in DIR to horizon B. *)
+
+(* MEANDERS_GC=1: print GC statistics at exit. *)
+let () =
+  if Sys.getenv_opt "MEANDERS_GC" <> None
+  then
+    at_exit (fun () ->
+    let s = Gc.quick_stat () in
+    Printf.eprintf
+      "minor_collections=%d major_collections=%d minor_words=%.0f major_words=%.0f \
+       compactions=%d heap_words=%d top_heap_words=%d\n"
+      s.minor_collections
+      s.major_collections
+      s.minor_words
+      s.major_words
+      s.compactions
+      s.heap_words
+      s.top_heap_words)
+;;
+
 
 let () =
   (* The big tables are unboxed arrays the GC never scans, so a major cycle is cheap; run
@@ -24,6 +47,57 @@ let () =
     Option.value (flag "--threads" args) ~default:(Domain.recommended_domain_count ())
   in
   let two = List.mem "--two-moduli" args in
+  let rec arg name = function
+    | a :: v :: _ when a = name -> Some v
+    | _ :: rest -> arg name rest
+    | [] -> None
+  in
+  (match arg "--store" args, flag "--horizon" args with
+   | Some root, Some b ->
+     let cap =
+       match flag "--cap" args with
+       | Some c -> c
+       | None ->
+         let gb =
+           Option.value (Option.bind (arg "--mem-gb" args) float_of_string_opt) ~default:16.0
+         in
+         max 1024 (int_of_float (gb *. 1e9 /. (4096.0 *. 120.0)))
+     in
+     Parallel_scheduler.with_parallel ~max_workers:threads (fun par ->
+       Meanders.Store.extend par ~root ~target:b ~threads ~cap ~out:(fun line ->
+         print_endline line;
+         flush stdout));
+     exit 0
+   | _ -> ());
+  (match flag "--mitm" args with
+   | Some b ->
+     let t0 = Unix.gettimeofday () in
+     Printf.printf
+       "# n\tcount\tcheck\tforward_states\tbackward_states\tthreads=%d\n%!"
+       threads;
+     let rows =
+       Parallel_scheduler.with_parallel ~max_workers:threads (fun par ->
+         Meanders.Mitm.run par ~horizon:b ~threads)
+     in
+     Array.iter
+       (fun (r : Meanders.Mitm.row) ->
+         let check =
+           match r.check with
+           | Some c when c = r.count -> "ok"
+           | Some c -> Printf.sprintf "MISMATCH(%s)" c
+           | None -> "-"
+         in
+         Printf.printf
+           "%d\t%s\t%s\t%d\t%d\n"
+           r.n
+           r.count
+           check
+           r.forward_states
+           r.backward_states)
+       rows;
+     Printf.eprintf "seconds: %.3f\n" (Unix.gettimeofday () -. t0);
+     exit 0
+   | None -> ());
   let check = List.mem "--check" args in
   Printf.printf "# n\tcount\tpeak_states\ttotal_states\tseconds\tthreads=%d\n%!" threads;
   Parallel_scheduler.with_parallel ~max_workers:threads (fun par ->
@@ -46,18 +120,3 @@ let () =
     done)
 ;;
 
-let () =
-  if Sys.getenv_opt "MEANDERS_GC" <> None
-  then (
-    let s = Gc.quick_stat () in
-    Printf.eprintf
-      "minor_collections=%d major_collections=%d minor_words=%.0f major_words=%.0f \
-       compactions=%d heap_words=%d top_heap_words=%d\n"
-      s.minor_collections
-      s.major_collections
-      s.minor_words
-      s.major_words
-      s.compactions
-      s.heap_words
-      s.top_heap_words)
-;;

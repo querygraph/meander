@@ -2,6 +2,10 @@ module Word = Word
 module Serial = Serial
 module Sweep = Sweep
 module Crt = Crt
+module Back = Back
+module Limb = Limb
+module Mitm = Mitm
+module Store = Store
 
 type stats =
   { count : string
