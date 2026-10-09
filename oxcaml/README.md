@@ -42,8 +42,13 @@ with `-opaque`, which blocks flambda2's cross-module inlining and makes the prog
 | `src/sweep.ml` | the parallel layer sweep, shard tables, capsules, scratch slices |
 | `src/crt.ml` | CRT recombination (mod 2^63, mod 2^61 − 1) and ~124-bit decimal printing |
 | `src/serial.ml` | the sequential reference sweep behind `--check` |
+| `src/back.ml` | the meet-in-the-middle state key (E-free, `h << 58 \| 1 << len \| bits`), the bridge steps, depth and the packed inverse steps |
+| `src/limb.ml` | exact two-limb (2 x 62-bit) counts |
+| `src/mitm.ml` | meet in the middle in memory (`--mitm`) |
+| `src/store.ml` | the persistent, stepwise store on disk (`--store`) |
 | `bin/meanders_ox.ml` | the CLI |
 | `test/test_meanders.ml` | CRT test vectors (including A005316(44..46)); parallel = serial = OEIS for n ≤ 28 |
+| `test/test_mitm.ml` | inverse steps vs a reference, long words, `--mitm` = OEIS for n ≤ 30, store extension, discard, pause/resume |
 
 ## The algorithm
 
@@ -194,10 +199,68 @@ OxCaml runs were interleaved so both saw similar conditions.
     Lowering the 0.75 target load in `predict_slots` is the other knob.
 - **Single thread, n = 34, best of 3.** OxCaml 0.84–0.89 s user, Rust 0.69–0.83 s.
 
+## Meet in the middle
+
+The second algorithm of `../rust` (`mitm.rs`, `store.rs`, `mitm_store.rs`), proved in
+`Arnold/TM/Middle.lean` (`meet`): A(n) = Σ_s F_k(s) · G_{n−k}(s), with F the forward bridge
+layers and G the backward layers (inverse steps, pruned by depth). Each value is checked by
+a second split.
+
+```sh
+./_build/default/bin/meanders_ox.exe --mitm 44                  # in memory, all A(n), n <= 44
+./_build/default/bin/meanders_ox.exe --store DIR --horizon 48 [--mem-gb 16 | --cap N] \
+    [--discard] [--min-free-gb G]
+```
+
+- **The store** keeps every layer on disk and is extended in place: `--horizon 50` on a
+  horizon-48 store adds one segment per backward layer and computes only A(49), A(50).
+  - Each segment is two files, `seg{s}.dat` and `seg{s}.idx`, as in Rust. A step writes one
+    spill file. Workers read byte ranges through their own descriptors.
+  - `touch DIR/PAUSE` stops at the next layer boundary, and so does free disk below
+    `--min-free-gb`; either way the exit code is 3. The same command resumes.
+  - `--discard` deletes each backward layer once the next one has read it. That needs far
+    less disk, but the store can no longer be extended.
+- **Keys** are 63-bit OCaml ints with h in the top 5 bits. A key with h ≥ 16 is therefore a
+  negative int, so the store orders states as unsigned numbers throughout: radix sort,
+  merges, joins and varint differences.
+- **Validated** against `meanders-rs`:
+  - the `values` files are identical for horizon 40 extended to 44, and for direct horizons
+    46 and 48;
+  - every layer's state count is identical;
+  - every second split agrees.
+
+M1 Max, 10 threads, `--mem-gb 16`. The laptop was busy with other work, so treat the times
+as ±5%.
+
+| run | Rust wall / user / RSS | OxCaml wall / user / RSS |
+|---|---|---|
+| `--mitm 44` | 17.6 s / 115 s / – | 16.2 s / 123 s / – |
+| `--store`, horizon 46 | 49 s / 399 s / 5.8 GB | 57 s / 490 s / 7.3 GB |
+| `--store`, horizon 48 | 148 s / 1173 s / 6.0 GB | 170 s / 1387 s / 7.4 GB |
+
+Store optimizations, at horizon 48 (the first port took 176 s with an 11.7 GB RSS):
+
+- **Tables sized like Rust's.** A table that spills is emptied and reused, so all 4096
+  shards spilling together no longer doubles the memory.
+- **Per-worker buffers.** The output and radix-sort buffers are reused across shards.
+- **`space_overhead` 10** for `--store`.
+- **Sort and encode outside the shard lock.** Under the lock a spill only copies the
+  entries out.
+- **Look-ahead loads** in the batch insert (also used by `--mitm`). This cut `--mitm 44`
+  from 130 s to 123 s user.
+
+In memory OxCaml is on par with Rust. On disk it is about 15% slower and needs about 1.2x
+the RSS. The profile is dominated by table probes (cache misses) and the inverse steps, the
+same as Rust's. Faster varint decoding gained nothing measurable.
+
 ## Compromises
 
-- **One `unsafe_` call.** `Iarray.unsafe_of_array__promise_no_mutation` freezes a fresh
-  local array, explained above. Everything else is checked by the mode system.
+- **Two `unsafe_` calls.** Both are `Iarray.unsafe_of_array__promise_no_mutation`.
+  - One freezes a fresh local batch array, explained above.
+  - The other, in the store, freezes the entries a spill copies out of a shard's capsule.
+    That array is fresh and never written again.
+
+  Everything else is checked by the mode system.
 - **Raw bits in `float#` slots.** The `float#` storage holds raw 64-bit patterns, not
   floats. It exists only to avoid the arm64 store barrier, and the conversions are confined
   to `to_raw`/`of_raw` in `sweep.ml`.

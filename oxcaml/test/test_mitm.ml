@@ -161,9 +161,9 @@ let test_store (par @ local) =
   and b = Filename.concat base "b" in
   Store.remove_all base;
   for i = 0 to 2 do
-    Store.extend par ~root:a ~target:(16 + (4 * i)) ~threads:3 ~cap:2 ~out:ignore
+    ignore (Store.extend par ~root:a ~target:(16 + (4 * i)) ~threads:3 ~cap:2 ~out:ignore () : Store.outcome)
   done;
-  Store.extend par ~root:b ~target:24 ~threads:4 ~cap:100_000 ~out:ignore;
+  ignore (Store.extend par ~root:b ~target:24 ~threads:4 ~cap:100_000 ~out:ignore () : Store.outcome);
   let va = read (Filename.concat a "values") in
   if va <> read (Filename.concat b "values") then fail "store: stepwise and direct values differ";
   let rows = List.filter (fun l -> l <> "" && l.[0] <> '#') (String.split_on_char '\n' va) in
@@ -182,6 +182,51 @@ let test_store (par @ local) =
   print_endline "store: 16 -> 20 -> 24 = 24 ok"
 ;;
 
+(* Discarding backward layers gives the same values and keeps only the last layer of each side;
+   pausing at a layer boundary and resuming (after a crash left a stale step behind) gives the
+   same values as an uninterrupted run. *)
+let test_pause_discard (par @ local) =
+  let base = Filename.concat (Filename.get_temp_dir_name ()) (Printf.sprintf "meanders-ox-pause-%d" (Unix.getpid ())) in
+  let a = Filename.concat base "a"
+  and b = Filename.concat base "b"
+  and c = Filename.concat base "c" in
+  Store.remove_all base;
+  ignore (Store.extend par ~root:b ~target:22 ~threads:4 ~cap:50 ~out:ignore () : Store.outcome);
+  ignore (Store.extend par ~discard:true ~root:c ~target:22 ~threads:4 ~cap:50 ~out:ignore () : Store.outcome);
+  if read (Filename.concat c "values") <> read (Filename.concat b "values")
+  then fail "store: discard changes the values";
+  List.iter
+    (fun p ->
+      let n = Array.length (Sys.readdir (Filename.concat c p)) in
+      if n <> 1 then fail "store: discard keeps %d layers of %s" n p)
+    [ "G0"; "G1" ];
+  Store.mkdir_p a;
+  let pause = Filename.concat a "PAUSE" in
+  let touch path = close_out (open_out_bin path) in
+  let outcome =
+    Store.extend par ~root:a ~target:22 ~threads:4 ~cap:50 ~out:(fun line ->
+      if String.length line >= 6 && String.sub line 0 6 = "G1   5" then touch pause) ()
+  in
+  if outcome <> Store.Paused then fail "store: no pause";
+  let g6 = Filename.concat (Filename.concat a "G1") "006" in
+  let tmp = Filename.concat g6 "tmp" in
+  Store.mkdir_p tmp;
+  let oc = open_out_bin (Filename.concat tmp "spill") in
+  output_string oc "\001\002\003";
+  close_out oc;
+  let oc = open_out_bin (Filename.concat g6 "seg0.dat") in
+  output_string oc "garbage";
+  close_out oc;
+  Sys.remove pause;
+  if Store.extend par ~root:a ~target:22 ~threads:4 ~cap:50 ~out:ignore () <> Store.Complete
+  then fail "store: no resume";
+  if Sys.file_exists tmp then fail "store: stale spill kept";
+  if read (Filename.concat a "values") <> read (Filename.concat b "values")
+  then fail "store: pause and resume change the values";
+  Store.remove_all base;
+  print_endline "store: discard and pause/resume ok"
+;;
+
 let () =
   (* the exact two-limb arithmetic *)
   let #(h, l) = Limb.mul 0 Limb.mask 0 Limb.mask in
@@ -196,18 +241,24 @@ let () =
       let t = Mitm.Table.create 64 in
       let keys = Hashtbl.create 16 in
       for _ = 1 to n do
-        let k = (Random.bits () lor (Random.bits () lsl 30)) land ((1 lsl 61) - 1) in
+        (* all 63 bits: keys with h >= 16 are negative ints, ordered unsigned *)
+        let k = Random.bits () lor (Random.bits () lsl 30) lor (Random.bits () lsl 60) in
         Hashtbl.replace keys k ();
         Mitm.Table.add t k 0 1
       done;
       let c, m = Store.sorted t in
-      let want = List.sort compare (Hashtbl.fold (fun k () a -> k :: a) keys []) in
+      let want =
+        List.sort
+          (fun a b -> compare (Store.bias a) (Store.bias b))
+          (Hashtbl.fold (fun k () a -> k :: a) keys [])
+      in
       if List.init m (fun i -> Sweep.uget c (3 * i) - 1) <> want then fail "Store.sorted, n = %d" n)
     [ 0; 1; 2; 17; 1000; 20000 ];
   test_inverse ();
   test_long_words ();
   Parallel_scheduler.with_parallel ~max_workers:4 (fun par ->
     test_mitm par;
-    test_store par [@nontail]);
+    test_store par;
+    test_pause_discard par [@nontail]);
   print_endline "ok"
 ;;

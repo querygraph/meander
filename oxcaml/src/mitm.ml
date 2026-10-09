@@ -134,16 +134,32 @@ module Table = struct
 
   (* Add a batch of [n] interleaved (key, hi, lo) triples, keeping the array and size in
      registers. *)
+  (* The inserts miss the cache; each iteration also loads the home slot of the insert
+     [ahead] places later (there is no prefetch instruction in the libraries here), folded
+     into [touch] so that the load stays. *)
+  let ahead = 8
+  let touch_magic = #0x2B7E_1516_28AE_D2A6L
+
   let add_batch t (b : raw iarray @ local) n =
-    let rec go i cells size len =
+    let rec go i cells size len touch =
       if i = n
-      then t.len <- len
+      then (
+        t.len <- len;
+        if U.equal touch touch_magic then t.len <- len)
       else if needs_grow len size
       then (
         t.len <- len;
         grow t;
-        go i t.cells (slots t.cells) len)
+        go i t.cells (slots t.cells) len touch)
       else (
+        let touch =
+          if i + ahead < n
+          then
+            U.logxor
+              touch
+              (rget cells (3 * slot (hash (U.to_int (iget b (3 * (i + ahead))))) size))
+          else touch
+        in
         let k = iget b (3 * i) in
         let fresh =
           place
@@ -154,9 +170,9 @@ module Table = struct
             (iget b ((3 * i) + 1))
             (iget b ((3 * i) + 2))
         in
-        go (i + 1) cells size (if fresh then len + 1 else len))
+        go (i + 1) cells size (if fresh then len + 1 else len) touch)
     in
-    go 0 t.cells (slots t.cells) t.len [@nontail]
+    go 0 t.cells (slots t.cells) t.len #0L [@nontail]
   ;;
 end
 

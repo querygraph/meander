@@ -3,7 +3,10 @@
 
    meanders_ox --mitm B: every A(n), n <= B, by meet in the middle, each checked by a second
    split. meanders_ox --store DIR --horizon B [--mem-gb G | --cap N]: create or extend the
-   persistent meet-in-the-middle store in DIR to horizon B. *)
+   persistent meet-in-the-middle store in DIR to horizon B; [--discard] deletes each backward
+   layer once used (the store then cannot be extended), [--min-free-gb G] pauses when the disk
+   has less free space. A file PAUSE in DIR pauses at the next layer boundary (exit code 3);
+   the same command resumes. *)
 
 (* MEANDERS_GC=1: print GC statistics at exit. *)
 let () =
@@ -29,9 +32,13 @@ let () =
      them often (space_overhead 30 instead of 120) so that freed tables return to the
      allocator soon, which keeps the peak footprint down. Setting OCAMLRUNPARAM at all
      leaves the GC parameters to it. *)
-  if Option.is_none (Sys.getenv_opt "OCAMLRUNPARAM")
-  then Gc.set { (Gc.get ()) with space_overhead = 30 };
   let args = Array.to_list Sys.argv |> List.tl in
+  (* The store churns through a full set of shard tables per layer: collect more eagerly
+     still (10: 7.3 GB instead of 8.1 GB at horizon 46, at the same speed). *)
+  if Option.is_none (Sys.getenv_opt "OCAMLRUNPARAM")
+  then
+    Gc.set
+      { (Gc.get ()) with space_overhead = (if List.mem "--store" args then 10 else 30) };
   let rec flag name = function
     | a :: v :: _ when a = name -> int_of_string_opt v
     | _ :: rest -> flag name rest
@@ -63,11 +70,29 @@ let () =
          in
          max 1024 (int_of_float (gb *. 1e9 /. (4096.0 *. 120.0)))
      in
-     Parallel_scheduler.with_parallel ~max_workers:threads (fun par ->
-       Meanders.Store.extend par ~root ~target:b ~threads ~cap ~out:(fun line ->
-         print_endline line;
-         flush stdout));
-     exit 0
+     let discard = List.mem "--discard" args in
+     let min_free =
+       match Option.bind (arg "--min-free-gb" args) float_of_string_opt with
+       | Some g -> int_of_float (g *. 1e9)
+       | None -> 0
+     in
+     let outcome =
+       Parallel_scheduler.with_parallel ~max_workers:threads (fun par ->
+         Meanders.Store.extend
+           par
+           ~discard
+           ~min_free
+           ~root
+           ~target:b
+           ~threads
+           ~cap
+           ~out:(fun line ->
+             print_endline line;
+             flush stdout)
+           ())
+     in
+     (* 3: paused (PAUSE file or low disk); run again with the same horizon to resume *)
+     exit (match outcome with Complete -> 0 | Paused -> 3)
    | _ -> ());
   (match flag "--mitm" args with
    | Some b ->
