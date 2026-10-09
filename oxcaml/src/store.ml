@@ -549,12 +549,19 @@ type appender =
   ; aidx : int array
   }
 
+(* Flush a file being appended to every this many bytes, so that the dirty pages waiting for
+   a slow volume stay bounded (as in rust/src/store.rs: a hard hang of Morrobay, on an HFS+
+   SoftRAID RAID 5 in a Thunderbolt enclosure, probably began with writes piling up in memory
+   behind a volume that had stopped keeping up). *)
+let sync_bytes = 256 lsl 20
+
 (* Append the first [len] bytes of [s] under the lock; its offset. Records it as shard [d]'s range if [d >= 0]. *)
 let append (par @ local) (a : appender With_mutex.t) (d : int) (s : string) (len : int) =
   With_mutex.with_lock (Parallel.sync par) a ~f:(fun _ a ->
     let off = a.apos in
     pwrite a.afd off s len;
     a.apos <- off + len;
+    if a.apos / sync_bytes <> off / sync_bytes then Unix.fsync a.afd;
     if d >= 0
     then (
       a.aidx.(2 * d) <- off;

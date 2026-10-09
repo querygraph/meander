@@ -27,6 +27,22 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 const BATCH: usize = 128;
 const CHUNK: usize = 1 << 20;
+/// Flush a file being appended to every this many bytes, so that the dirty pages waiting
+/// for a slow volume stay bounded. (A hard hang of Morrobay, on an HFS+ SoftRAID RAID 5 in a
+/// Thunderbolt enclosure, probably began with writes piling up in memory behind a volume that
+/// had stopped keeping up.)
+const SYNC_BYTES: u64 = 256 << 20;
+
+/// Append `bytes` to a file whose length is `g.1`; returns the offset written at.
+fn append(g: &mut (File, u64), bytes: &[u8], what: &str) -> u64 {
+    let off = g.1;
+    g.0.write_all(bytes).unwrap_or_else(|e| panic!("write {what}: {e}"));
+    g.1 += bytes.len() as u64;
+    if g.1 / SYNC_BYTES != off / SYNC_BYTES {
+        g.0.sync_data().unwrap_or_else(|e| panic!("sync {what}: {e}"));
+    }
+    off
+}
 
 /// Raise the limit on open files to the hard limit (macOS defaults to 256).
 pub fn raise_fd_limit() {
@@ -235,10 +251,7 @@ impl SegmentWriter {
         }
         let off = {
             let mut g = self.dat.lock().unwrap();
-            let off = g.1;
-            g.0.write_all(bytes).expect("write segment");
-            g.1 += bytes.len() as u64;
-            off
+            append(&mut g, bytes, "segment")
         };
         self.index.lock().unwrap()[d] = (off, bytes.len() as u64);
     }
@@ -337,10 +350,7 @@ pub fn step(
                         spilled.fetch_add(encode(&mut bytes, t.sorted()), Ordering::Relaxed);
                         let off = {
                             let mut g = spills[me].lock().unwrap();
-                            let off = g.1;
-                            g.0.write_all(&bytes).expect("write spill");
-                            g.1 += bytes.len() as u64;
-                            off
+                            append(&mut g, &bytes, "spill")
                         };
                         tables[d].lock().unwrap().1.push((me, off, bytes.len() as u64));
                     }

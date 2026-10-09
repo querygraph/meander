@@ -24,6 +24,11 @@ use std::time::Instant;
 
 const NO_TARGET: usize = 120;
 
+/// The manifest's first line. Version 2 is the layout of `store.rs` (`seg{s}.dat` +
+/// `seg{s}.idx`); version 1 stores (one file per shard) would read as empty layers, so they
+/// are refused.
+const FORMAT: &str = "format meanders-mitm-2";
+
 /// What the store holds, saved in `manifest` as `key value` lines.
 #[derive(Default, Debug)]
 struct Manifest {
@@ -41,6 +46,13 @@ impl Manifest {
     fn load(root: &Path) -> Manifest {
         let mut m = Manifest::default();
         let Ok(text) = fs::read_to_string(root.join("manifest")) else { return m };
+        if text.lines().next() != Some(FORMAT) {
+            panic!(
+                "{}: not a store of this layout (want \"{FORMAT}\", found {:?}); use a new directory",
+                root.display(),
+                text.lines().next().unwrap_or("")
+            );
+        }
         for line in text.lines() {
             let mut it = line.split_whitespace();
             match (it.next(), it.next()) {
@@ -62,7 +74,7 @@ impl Manifest {
     }
 
     fn save(&self, root: &Path) {
-        let mut s = String::from("format meanders-mitm-1\n");
+        let mut s = format!("{FORMAT}\n");
         let hs: Vec<String> = self.horizons.iter().map(|h| h.to_string()).collect();
         s += &format!("horizons {}\nkmax {}\nrmax0 {}\nrmax1 {}\n", hs.join(","), self.kmax, self.rmax[0], self.rmax[1]);
         if let Some((b, done)) = self.partial {
