@@ -381,12 +381,13 @@ pub fn step(
                             for &(k, hv, c) in buf.iter() {
                                 t.0.add(k, hv, c);
                             }
-                            if t.0.len > cap { Some(std::mem::take(&mut t.0)) } else { None }
+                            if t.0.len > cap { Some(t.0.drain()) } else { None }
                         };
                         buf.clear();
-                        if let Some(t) = full {
+                        if let Some(mut v) = full {
+                            v.sort_unstable_by_key(|e| e.0);
                             bytes.clear();
-                            spilled.fetch_add(encode(&mut bytes, t.sorted()), Ordering::Relaxed);
+                            spilled.fetch_add(encode(&mut bytes, v), Ordering::Relaxed);
                             let off = {
                                 let mut g = spills[me].lock().unwrap();
                                 append(&mut g, &bytes, "spill")
