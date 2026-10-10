@@ -254,9 +254,54 @@ Store optimizations, at horizon 48 (the first port took 176 s with an 11.7 GB RS
 - **Look-ahead loads** in the batch insert (also used by `--mitm`). This cut `--mitm 44`
   from 130 s to 123 s user.
 
-In memory OxCaml is on par with Rust. On disk it is about 15% slower and needs about 1.2x
-the RSS. The profile is dominated by table probes (cache misses) and the inverse steps, the
-same as Rust's. Faster varint decoding gained nothing measurable.
+On the M1 Max laptop, in memory, OxCaml is on par with Rust. On disk it is about 15% slower
+and needs about 1.2x the RSS. The profile is dominated by table probes (cache misses) and the
+inverse steps, the same as Rust's. Faster varint decoding gained nothing measurable.
+
+### The race on Morrobay
+
+Morrobay is a Xeon W-2191B (18 cores, 36 threads, 128 GB) with the stores on Apo, an HFS+
+SoftRAID RAID 5 of SATA SSDs. Runs used 32 threads, the October 2026 code (Rust d5647bf), and
+fresh stores. The caps give about 45 GB of tables each: Rust 380000, OxCaml 300000 (OxCaml
+sizes its tables at 1.5x the cap). The values are identical.
+
+| run | Rust wall / user / sys / RSS | OxCaml wall / user / sys / RSS |
+|---|---|---|
+| `--mitm 46` | 67 s / 913 s / 75 s / 12.9 GB | **37 s** / 747 s / 50 s / 17.6 GB |
+| `--store`, horizon 52 | 2953 s / 17925 s / **24581 s** / 62.0 GB | **1310 s** / 21196 s / 2095 s / 58.5 GB |
+
+At horizon 52 OxCaml wins 2.25x. Rust spends more CPU time in the kernel than in its own code.
+
+| horizon 52 store | Rust | OxCaml |
+|---|---|---|
+| involuntary context switches | 376 million | 27 million |
+| minor page faults | 221 million | 122 million |
+| machine CPU, user / sys | 51% / 28% | 86% / 8% |
+
+The profiles (`sample`, 20 s every 4 min) show where the two differ:
+
+- **Rust's sort.** `sort_unstable` on (key, count) pairs is Rust's top frame, about a fifth
+  of its samples. OxCaml's LSD radix sort, with 11-bit digits and per-worker scratch, takes
+  about 5% of OxCaml's.
+- **Rust's lock waits.** Workers wait on the shard mutexes (`psynch_mutexwait`, about 10% of
+  samples). A full table is emptied in place under its lock (`Table::drain`, which scans all
+  its slots). That was added to stop allocator churn (d5647bf), but it holds the lock long
+  enough for 31 other threads to block in the kernel. OxCaml copies under the lock too, but
+  its futex-based mutex parks waiters far more cheaply (`__ulock_wait`).
+- **Rust's fresh buffers.** Each spill collects into a new `Vec`, each compacted shard sorts
+  into a new `Vec`, and each spilled range gets a new 1 MB read buffer. On macOS these large
+  allocations are fresh mappings, so every one page-faults its memory in again. OxCaml
+  reuses per-worker buffers for all three.
+- **OxCaml's profile** is what both should look like: table inserts (`Mitm.go`) about half,
+  inverse steps (`claim_loop`) about a fifth, then reads, sort and decoding.
+
+The fixes for Rust are known, and all are OxCaml's own:
+- a per-worker spare table, swapped in under the lock in O(1);
+- reused drain, sort and read buffers;
+- the radix sort.
+
+In memory, Rust's 1.8x deficit on the Xeon (on the laptop, 1.1x) has not been profiled yet:
+the run is too short for the 4-minute sampler.
 
 ## Compromises
 
