@@ -125,7 +125,7 @@ pub struct Stats {
 
 /// Slots per shard for the next layer: the layer-to-layer growth ratio extrapolated
 /// geometrically, clamped to `[0.25, 2.5]`, at load 0.75 (the OxCaml program's rule).
-fn predict_slots(size: usize, prev: usize, prev2: usize) -> usize {
+pub(crate) fn predict_slots(size: usize, prev: usize, prev2: usize) -> usize {
     let r = if prev > 0 { size as f64 / prev as f64 } else { 2.5 };
     let r_prev = if prev2 > 0 { prev as f64 / prev2 as f64 } else { r };
     let r_next = (r * r / r_prev).clamp(0.25, 2.5);

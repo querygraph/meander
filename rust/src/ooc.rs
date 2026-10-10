@@ -81,7 +81,7 @@ impl Table {
         }
     }
 
-    fn with_slots(slots: usize) -> Table {
+    pub(crate) fn with_slots(slots: usize) -> Table {
         Table { keys: vec![0; slots], cnts: vec![0; slots], len: 0 }
     }
 
@@ -114,6 +114,11 @@ impl Table {
                 i = 0;
             }
         }
+    }
+
+    /// Whether the table has no slots yet (a `Default` table, allocated on first use).
+    pub(crate) fn unallocated(&self) -> bool {
+        self.keys.is_empty()
     }
 
     pub(crate) fn entries(&self) -> impl Iterator<Item = (Key, u128)> + '_ {
