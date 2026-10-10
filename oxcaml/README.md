@@ -295,13 +295,28 @@ The profiles (`sample`, 20 s every 4 min) show where the two differ:
 - **OxCaml's profile** is what both should look like: table inserts (`Mitm.go`) about half,
   inverse steps (`claim_loop`) about a fifth, then reads, sort and decoding.
 
-The fixes for Rust are known, and all are OxCaml's own:
+Those fixes were then ported to Rust (8211168):
 - a per-worker spare table, swapped in under the lock in O(1);
 - reused drain, sort and read buffers;
 - the radix sort.
 
-In memory, Rust's 1.8x deficit on the Xeon (on the laptop, 1.1x) has not been profiled yet:
-the run is too short for the 4-minute sampler.
+So were the fixes for its in-memory driver (0dbf7b3), whose profile showed the same lock
+waits and allocation churn:
+- presized tables, allocated by the first worker to use them;
+- parallel dot products;
+- forward layers read in place instead of copied.
+
+Rerun on Morrobay with the same settings, values identical:
+
+| run | Rust before | Rust after | OxCaml |
+|---|---|---|---|
+| `--store`, horizon 52 | 2953 s | **1055 s**, 1934 s sys, 55.9 GB | 1272 s, 2135 s sys, 57.0 GB |
+| `--mitm 46` | 72 s | **40 s**, 14.4 GB | 44 s, 16.4 GB |
+| `--mitm 48` | | **92 s**, 32.0 GB | 100 s, 37.0 GB |
+
+With the same design, Rust leads by 8 to 17 percent and uses a little less memory. On the
+laptop, under heavy load (load average about 110), the store at horizon 48 took 194 s in Rust
+and 222 s in OxCaml. Why OxCaml had the better design first is in `../rust-vs-ocaml.md`.
 
 ## Compromises
 

@@ -68,11 +68,43 @@ With the same tables, Rust is the fastest program from 44 crossings up and on a 
 
 Memory tells the same story in reverse. Pre-sized tables are allocated at full size while the previous layer is still draining, so pre-sized Rust needs a third more memory. OxCaml needs more still, because its freed tables go back to the system only after a major garbage collection, while Rust frees them at once. Rust grows on demand by default, because memory is what limits how far it can count.
 
+## Round two: meet in the middle
+
+The transfer matrix carries a whole layer of states from west to east. A second algorithm meets in the middle instead. It builds forward layers from the west and backward layers from the east, and each count is the dot product of the two where they meet. A second, independent meeting point checks every count. The theorem that makes this correct is proved in Lean too. Both programs implement it in memory and as a store on disk that can be extended to more crossings without recomputing anything. The store is what took us past the published sequence. On Morrobay, an 18-core Xeon with 128 GB of memory, the Rust store counted every value up to 58 crossings. Three are new: A(56) = 28,235,899,288,344,793,178,333,732, A(57) = 116,936,079,373,841,873,422,508,566 and A(58) = 308,496,356,015,441,090,010,351,094. The OxCaml store matches it exactly up to 56, its limit.
+
+The race went the same way as the first one. OxCaml started ahead, by a lot:
+
+| Morrobay, 32 threads | Rust | OxCaml |
+|---|---|---|
+| store, 52 crossings | 2953 s, 24,581 s of CPU in the kernel | 1272 s, 2,135 s in the kernel |
+| in memory, 46 crossings | 72 s | 44 s |
+
+Rust spent more CPU time inside the operating system than in its own code: 376 million involuntary context switches against OxCaml's 27 million. The profiles named three causes.
+
+- **Sorting.** Rust sorted spilled tables with the standard library's general-purpose sort, and that was its top frame. OxCaml uses a radix sort.
+- **Locks.** Rust emptied a full table while holding its lock, and 31 other threads queued in the kernel.
+- **Memory.** Rust allocated fresh large buffers for every spill, sort and read, and on macOS each one is a new mapping that must be faulted in. OxCaml reused one set per worker.
+
+In memory, Rust also grew every table from empty and computed its dot products on one thread.
+
+None of these is a property of Rust. They are what we wrote first. OxCaml was the second implementation and was profiled on purpose. Its garbage collector reported the 121 GB it allocated, which forced buffer reuse early. Its mode system forbids sharing mutable buffers between domains, which pushed every worker toward buffers of its own. Rust's `Vec::new()` and `sort_unstable` look free until they run at scale on the target machine. We had tuned on a laptop, where page faults are cheap.
+
+So we ported OxCaml's fixes to Rust: a spare table swapped in under the lock, the radix sort, reused buffers, presized tables and parallel dot products.
+
+| Morrobay, 32 threads | Rust before | Rust after | OxCaml |
+|---|---|---|---|
+| store, 52 crossings | 2953 s | **1055 s**, 56 GB | 1272 s, 57 GB |
+| in memory, 46 crossings | 72 s | **40 s**, 14 GB | 44 s, 16 GB |
+| in memory, 48 crossings | | **92 s**, 32 GB | 100 s, 37 GB |
+
+With the same design, Rust leads by 8 to 17 percent and uses a little less memory. That repeats the first round's result: the two languages are close. The rest of the difference was in which program got the careful second look.
+
 ## What we learned
 
 - **The languages were not the difference.** A design choice was. Ported across, it moved the lead to the other program.
 - **Measure before explaining.** Our first explanation sounded right and was wrong about the mechanism. One controlled experiment settled it.
 - **OxCaml delivers Rust-like control with checked safety.** With the same design it comes within 13 to 20 percent of tuned Rust and beats it on small layers, with data races ruled out by the compiler. It also found the better table design first.
+- **The second implementation looks smarter.** Twice OxCaml led, and twice it had been written second, with the first program's lessons and a profiler in hand. A fair race gives both programs the same tuning pass on the same machine before comparing them.
 - **Correctness is the fixed point.** Both programs run the machine whose correctness Lean proves, and every count is checked against the certified values and the published sequence. Speed is the only thing that varied.
 
 The code, the benchmark harness and every raw result are in the repository: [github.com/querygraph/meander](https://github.com/querygraph/meander), with the programs in `rust/` and `oxcaml/`. The paper, [*Counting Arnold's Meanders with Verified Algorithms*](https://firstpair.org/books/arnold-meanders/), now describes all the implementations and these benchmarks, and the [first post](https://querygraph.ai/arnold-meanders/) tells how the counting began.

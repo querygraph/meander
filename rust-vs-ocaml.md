@@ -72,4 +72,14 @@ remove the operating-system costs too.
 - **Profile short runs too.** Sample a few seconds in, not on a fixed 4-minute timer.
 
 The race with equal tuning (October 2026) is the first comparison of the two languages rather
-than of how much effort each got. Its numbers go in the blog post.
+than of how much effort each got. With OxCaml's fixes ported to Rust, on Morrobay, 32 threads:
+
+| run | Rust before | Rust after | OxCaml |
+|---|---|---|---|
+| store, horizon 52 | 2953 s | **1055 s** | 1272 s |
+| `--mitm 46` | 72 s | **40 s** | 44 s |
+| `--mitm 48` | | **92 s** | 100 s |
+
+With the same design, Rust leads by 8 to 17 percent. The languages are close; the difference
+was which program got the careful second look. The blog post (`docs/blog/rust-vs-oxcaml/`)
+tells the whole race.
