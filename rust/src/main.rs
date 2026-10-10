@@ -275,6 +275,35 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
+    /// The store's radix sort orders (state, count) pairs exactly as a comparison sort does,
+    /// over all 64 key bits, with the scratch reused across calls.
+    #[test]
+    fn radix_sort_matches() {
+        let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut scratch = Vec::new();
+        for n in [0usize, 5, 1024, 1025, 5000, 100_000] {
+            let v: Vec<(u64, u128)> = (0..n)
+                .map(|i| {
+                    x ^= x << 13;
+                    x ^= x >> 7;
+                    x ^= x << 17;
+                    (if i % 3 == 0 { x } else { x >> (i % 50) }, i as u128)
+                })
+                .collect();
+            let mut want = v.clone();
+            want.sort_by_key(|e| e.0);
+            let mut got = v;
+            crate::store::radix_sort(&mut got, &mut scratch);
+            let keys = |w: &Vec<(u64, u128)>| w.iter().map(|e| e.0).collect::<Vec<_>>();
+            assert_eq!(keys(&got), keys(&want), "n = {n}");
+            let mut a = got.clone();
+            a.sort();
+            let mut b = want.clone();
+            b.sort();
+            assert_eq!(a, b, "same pairs, n = {n}");
+        }
+    }
+
     /// Building each step in several passes over its source gives the same store as one pass,
     /// whether the passes are forced or chosen from the layer sizes.
     #[test]

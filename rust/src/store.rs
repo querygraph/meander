@@ -102,10 +102,19 @@ struct RangeReader<'a> {
 }
 
 impl<'a> RangeReader<'a> {
-    fn new(file: &'a File, start: u64, len: u64) -> RangeReader<'a> {
-        let mut r = RangeReader { file, pos: start, end: start + len, buf: Vec::new(), at: 0, prev: 0, head: None };
+    /// A reader using a buffer from `pool` (a worker's, so that buffers are reused rather than
+    /// mapped and faulted in afresh for every range: on macOS a large allocation is a new
+    /// mapping). Return it with `release`.
+    fn new(file: &'a File, start: u64, len: u64, pool: &mut Vec<Vec<u8>>) -> RangeReader<'a> {
+        let mut buf = pool.pop().unwrap_or_default();
+        buf.clear();
+        let mut r = RangeReader { file, pos: start, end: start + len, buf, at: 0, prev: 0, head: None };
         r.advance();
         r
+    }
+
+    fn release(self, pool: &mut Vec<Vec<u8>>) {
+        pool.push(self.buf);
     }
 
     /// Make at least `need` bytes available, unless the range ends first.
@@ -148,12 +157,58 @@ impl<'a> RangeReader<'a> {
     }
 }
 
+/// Sort (state, count) pairs by state: an LSD radix sort with 11-bit digits, skipping the
+/// digits all states share, in the caller's reused `scratch` (as in OxCaml's store; a
+/// comparison sort was the top frame of the store's profile on Morrobay).
+pub(crate) fn radix_sort(v: &mut Vec<(Key, u128)>, scratch: &mut Vec<(Key, u128)>) {
+    const BITS: u32 = 11;
+    const R: usize = 1 << BITS;
+    const PASSES: usize = 6; // 66 bits cover the 64-bit keys
+    let n = v.len();
+    if n <= 1024 {
+        v.sort_unstable_by_key(|e| e.0);
+        return;
+    }
+    let mut cnt = vec![0usize; PASSES * R];
+    for e in v.iter() {
+        for p in 0..PASSES {
+            cnt[p * R + ((e.0 >> (p as u32 * BITS)) as usize & (R - 1))] += 1;
+        }
+    }
+    scratch.clear();
+    scratch.resize(n, (0, 0));
+    let mut in_scratch = false;
+    for p in 0..PASSES {
+        let c = &mut cnt[p * R..(p + 1) * R];
+        if c.contains(&n) {
+            continue;
+        }
+        let mut sum = 0;
+        for x in c.iter_mut() {
+            let t = *x;
+            *x = sum;
+            sum += t;
+        }
+        let shift = p as u32 * BITS;
+        let (src, dst) = if in_scratch { (&*scratch, &mut *v) } else { (&*v, &mut *scratch) };
+        for e in src.iter() {
+            let d = (e.0 >> shift) as usize & (R - 1);
+            dst[c[d]] = *e;
+            c[d] += 1;
+        }
+        in_scratch = !in_scratch;
+    }
+    if in_scratch {
+        std::mem::swap(v, scratch);
+    }
+}
+
 /// Merge sorted runs and a sorted remainder, adding counts of equal states.
-fn merge_runs(mut runs: Vec<RangeReader<'_>>, rest: Vec<(Key, u128)>, mut visit: impl FnMut(Key, u128)) {
-    let mut rest = rest.into_iter().peekable();
+fn merge_runs(runs: &mut [RangeReader<'_>], rest: &[(Key, u128)], mut visit: impl FnMut(Key, u128)) {
+    let mut rest = rest.iter().copied().peekable();
     loop {
         let mut min = rest.peek().map(|e| e.0);
-        for r in &runs {
+        for r in runs.iter() {
             if let Some((k, _)) = r.head {
                 min = Some(min.map_or(k, |m: Key| m.min(k)));
             }
@@ -212,14 +267,15 @@ impl Layer {
     }
 
     /// Visit shard `d` in increasing state order, merging its segments.
-    pub fn read_shard(&self, d: usize, visit: impl FnMut(Key, u128)) {
-        let runs = self
-            .segments
-            .iter()
-            .filter(|s| s.index[d].1 > 0)
-            .map(|s| RangeReader::new(&s.file, s.index[d].0, s.index[d].1))
-            .collect();
-        merge_runs(runs, Vec::new(), visit);
+    pub fn read_shard(&self, d: usize, pool: &mut Vec<Vec<u8>>, visit: impl FnMut(Key, u128)) {
+        let mut runs: Vec<RangeReader<'_>> = Vec::new();
+        for s in self.segments.iter().filter(|s| s.index[d].1 > 0) {
+            runs.push(RangeReader::new(&s.file, s.index[d].0, s.index[d].1, pool));
+        }
+        merge_runs(&mut runs, &[], visit);
+        for r in runs {
+            r.release(pool);
+        }
     }
 }
 
@@ -375,19 +431,33 @@ pub fn step(
                     let me = worker_id.fetch_add(1, Ordering::Relaxed);
                     let mut bufs: Vec<Vec<(Key, u64, u128)>> = (0..SHARDS).map(|_| Vec::new()).collect();
                     let mut bytes = Vec::new();
+                    let mut pool: Vec<Vec<u8>> = Vec::new();
+                    // A full table is swapped, under its lock, for this worker's spare (an
+                    // emptied table of the same size, once it has one), and drained, sorted
+                    // and encoded outside the lock in buffers the worker reuses.
+                    let mut spare = Table::default();
+                    let mut ents: Vec<(Key, u128)> = Vec::new();
+                    let mut scratch: Vec<(Key, u128)> = Vec::new();
                     let mut flush = |d: usize, buf: &mut Vec<(Key, u64, u128)>| {
                         let full = {
                             let mut t = tables[d].lock().unwrap();
                             for &(k, hv, c) in buf.iter() {
                                 t.0.add(k, hv, c);
                             }
-                            if t.0.len > cap { Some(t.0.drain()) } else { None }
+                            if t.0.len > cap {
+                                std::mem::swap(&mut t.0, &mut spare);
+                                true
+                            } else {
+                                false
+                            }
                         };
                         buf.clear();
-                        if let Some(mut v) = full {
-                            v.sort_unstable_by_key(|e| e.0);
+                        if full {
+                            ents.clear();
+                            spare.drain_into(&mut ents);
+                            radix_sort(&mut ents, &mut scratch);
                             bytes.clear();
-                            spilled.fetch_add(encode(&mut bytes, v), Ordering::Relaxed);
+                            spilled.fetch_add(encode(&mut bytes, ents.iter().copied()), Ordering::Relaxed);
                             let off = {
                                 let mut g = spills[me].lock().unwrap();
                                 append(&mut g, &bytes, "spill")
@@ -400,7 +470,7 @@ pub fn step(
                         if s >= SHARDS {
                             break;
                         }
-                        source.read_shard(s, |k, c| {
+                        source.read_shard(s, &mut pool, |k, c| {
                             f(k, &mut |k2| {
                                 let hv = hash(k2);
                                 let d = shard_of(hv);
@@ -438,27 +508,38 @@ pub fn step(
             for _ in 0..threads {
                 sc.spawn(|| {
                     let mut out = Vec::new();
+                    let mut pool: Vec<Vec<u8>> = Vec::new();
+                    let mut rest: Vec<(Key, u128)> = Vec::new();
+                    let mut scratch: Vec<(Key, u128)> = Vec::new();
                     loop {
                         let d = claim.fetch_add(1, Ordering::Relaxed);
                         if d >= hi {
                             break;
                         }
                         let (table, ranges) = std::mem::take(&mut *tables[d].lock().unwrap());
-                        let rest = table.sorted();
+                        rest.clear();
+                        rest.extend(table.entries());
+                        drop(table);
                         if rest.is_empty() && ranges.is_empty() {
                             continue;
                         }
-                        let runs: Vec<RangeReader<'_>> =
-                            ranges.iter().map(|&(w, off, len)| RangeReader::new(&spill_files[w], off, len)).collect();
+                        radix_sort(&mut rest, &mut scratch);
+                        let mut runs: Vec<RangeReader<'_>> = Vec::with_capacity(ranges.len());
+                        for &(w, off, len) in &ranges {
+                            runs.push(RangeReader::new(&spill_files[w], off, len, &mut pool));
+                        }
                         out.clear();
                         let mut prev: Key = 0;
                         let mut n = 0u64;
-                        merge_runs(runs, rest, |k, c| {
+                        merge_runs(&mut runs, &rest, |k, c| {
                             put_varint(&mut out, (k - prev) as u128);
                             put_varint(&mut out, c);
                             prev = k;
                             n += 1;
                         });
+                        for r in runs {
+                            r.release(&mut pool);
+                        }
                         states.fetch_add(n, Ordering::Relaxed);
                         writer.put(d, &out);
                     }
@@ -482,18 +563,20 @@ pub fn dot(a: &Layer, b: &Layer, threads: usize) -> u128 {
         for _ in 0..threads {
             sc.spawn(|| {
                 let mut sum = 0u128;
+                let mut pool: Vec<Vec<u8>> = Vec::new();
+                let mut av: Vec<(Key, u128)> = Vec::new();
                 loop {
                     let d = claim.fetch_add(1, Ordering::Relaxed);
                     if d >= SHARDS {
                         break;
                     }
-                    let mut av: Vec<(Key, u128)> = Vec::new();
-                    a.read_shard(d, |k, c| av.push((k, c)));
+                    av.clear();
+                    a.read_shard(d, &mut pool, |k, c| av.push((k, c)));
                     if av.is_empty() {
                         continue;
                     }
                     let mut i = 0;
-                    b.read_shard(d, |k, c| {
+                    b.read_shard(d, &mut pool, |k, c| {
                         while i < av.len() && av[i].0 < k {
                             i += 1;
                         }

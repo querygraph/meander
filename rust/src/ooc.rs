@@ -120,14 +120,13 @@ impl Table {
         self.keys.iter().zip(&self.cnts).filter(|e| *e.0 != 0).map(|(k, c)| (k - 1, *c))
     }
 
-    /// Move the entries out (unsorted) and empty the table in place, keeping its slots: a
-    /// table that spills refills to the same size, and regrowing it from nothing after every
-    /// spill churned the allocator (about 20 GB of retained memory over a 10-hour run).
-    pub(crate) fn drain(&mut self) -> Vec<(Key, u128)> {
-        let v: Vec<(Key, u128)> = self.entries().collect();
+    /// Append the entries (unsorted) to `out` and empty the table in place, keeping its
+    /// slots for reuse: regrowing tables from nothing after every spill churned the allocator
+    /// (about 20 GB of retained memory over a 10-hour run).
+    pub(crate) fn drain_into(&mut self, out: &mut Vec<(Key, u128)>) {
+        out.extend(self.entries());
         self.keys.fill(0);
         self.len = 0;
-        v
     }
 
     pub(crate) fn sorted(self) -> Vec<(Key, u128)> {
