@@ -5,11 +5,17 @@
    the east end, and backward states are what the east end will finish), so their key has no
    field for its position:
 
-     h << 58 | 1 << len | brackets      (bracket i at bit i, 1 = '(' and 0 = ')')
+     h << 58 | 1 << (len - 1) | inner      (the empty word: h << 58)
 
-   which fits words of up to 57 brackets in an OCaml int, enough for horizons up to 56 (the
-   forward layer after k bridges has words of up to 2k brackets). [of_word] and [to_word]
-   convert from and to the [Word] key, which keeps a field for 'E' and fits 50 brackets.
+   Every word is balanced (each arc is paired with another through the river further west:
+   the steps insert, re-pair or remove matched pairs), so its first bracket is '(' and its last
+   is ')'. Only the [len - 2] brackets between them are stored: bracket i (0 < i < len - 1) at
+   bit i - 1, 1 = '(' and 0 = ')'. That fits words of up to 58 brackets in an OCaml int, enough
+   for horizon 58, the forward layer after k bridges having words of up to 2k brackets. [make]
+   checks the first and last brackets, so a word breaking the rule fails loudly. The
+   transitions work on the full word [b] (bracket i at bit i), unpacked by [unpack].
+   [of_word] and [to_word] convert from and to the [Word] key, which keeps a field for 'E' and
+   fits 50 brackets.
 
    - [depth k = len - bal(h)], where [bal(h) = 2 popcount(brackets below bit h) - h] is the
      excess of '(' left of the cut: the fewest bridges that build the state from the west.
@@ -23,7 +29,7 @@
 
 let h_shift = 58
 let bits_mask = (1 lsl h_shift) - 1
-let max_len = 57
+let max_len = 58
 
 let[@inline always] popcount x = Ocaml_intrinsics_kernel.Int.count_set_bits x
 let[@inline always] low b i = b land ((1 lsl i) - 1)
@@ -38,27 +44,50 @@ let[@inline always] insert2 b i x y =
 
 let[@inline always] make b len h =
   if len > max_len || h > 31 then failwith "Back.make: state does not fit in 63 bits";
-  (h lsl h_shift) lor (1 lsl len) lor b
+  if len = 0
+  then h lsl h_shift
+  else (
+    if b land 1 = 0 || (b lsr (len - 1)) land 1 = 1
+    then failwith "Back.make: not a balanced word";
+    (h lsl h_shift) lor (1 lsl (len - 1)) lor ((b lsr 1) land ((1 lsl (len - 2)) - 1)))
+;;
+
+(* #(h, len, full word) of a key. *)
+let[@inline always] unpack k =
+  let h = k lsr h_shift in
+  let sb = k land bits_mask in
+  if sb = 0
+  then #(h, 0, 0)
+  else (
+    let t = Word.top_bit sb in
+    #(h, t + 1, ((sb lxor (1 lsl t)) lsl 1) lor 1))
+;;
+
+let length k =
+  let #(_, len, _) = unpack k in
+  len
 ;;
 
 (* The empty state, and the pair "()" with [p] arcs above the road. *)
-let init = 1
+let init = 0
 let pair p = make 1 2 p
 
 (* From and to the [Word] key (a word without 'E'). *)
-let of_word k = ((k lsr Word.h_shift) lsl h_shift) lor (k land Word.bits_mask)
+let of_word k =
+  let sb = k land Word.bits_mask in
+  let len = Word.top_bit sb in
+  make (sb lxor (1 lsl len)) len (k lsr Word.h_shift)
+;;
 
 let to_word k =
-  ((k lsr h_shift) lsl Word.h_shift) lor (Word.no_end lsl Word.e_shift) lor (k land bits_mask)
+  let #(h, len, b) = unpack k in
+  (h lsl Word.h_shift) lor (Word.no_end lsl Word.e_shift) lor (1 lsl len) lor b
 ;;
 
 (* [emit t] for every successor [t] of [k] under a bridge step, with no pruning: the bridge
    cases of [Word.successors] ([Arnold.TM.bstep] in Lean), on this key. *)
 let[@inline always] successors k (emit : (int -> unit) @ local) =
-  let h = k lsr h_shift in
-  let sb = k land bits_mask in
-  let len = Word.top_bit sb in
-  let b = sb lxor (1 lsl len) in
+  let #(h, len, b) = unpack k in
   let dn = len - h in
   (* open both: a pair "()" at the cut, joined at this bridge. *)
   emit (make (insert2 b h 1 0) (len + 2) (h + 1));
@@ -85,20 +114,14 @@ let[@inline always] successors k (emit : (int -> unit) @ local) =
 
 (* The fewest bridges that build the state from the west. *)
 let[@inline always] depth k =
-  let h = k lsr h_shift in
-  let sb = k land bits_mask in
-  let len = Word.top_bit sb in
-  let b = sb lxor (1 lsl len) in
+  let #(h, len, b) = unpack k in
   len - bal b h
 ;;
 
 (* [emit t] for every predecessor [t] of [k] under a bridge step with
    [lower < depth t <= bound] ([lower = -1]: no lower limit). *)
 let[@inline always] predecessors ~lower ~bound k (emit : (int -> unit) @ local) =
-  let h = k lsr h_shift in
-  let sb = k land bits_mask in
-  let len = Word.top_bit sb in
-  let b = sb lxor (1 lsl len) in
+  let #(h, len, b) = unpack k in
   let[@inline always] out b2 len2 h2 =
     let d = len2 - bal b2 h2 in
     if d <= bound && d > lower then emit (make b2 len2 h2)
@@ -140,10 +163,8 @@ module Reference = struct
     }
 
   let decode k =
-    let h = k lsr h_shift in
-    let sb = k land bits_mask in
-    let len = Word.top_bit sb in
-    { w = Array.init len (fun i -> (sb lsr i) land 1 = 1); h }
+    let #(h, len, b) = unpack k in
+    { w = Array.init len (fun i -> (b lsr i) land 1 = 1); h }
   ;;
 
   let encode { w; h } =

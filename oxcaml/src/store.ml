@@ -31,7 +31,8 @@
 
    The keys are [Back] keys (63-bit OCaml ints), not Rust's, so the segment files differ
    from the Rust store's; the [values] files and the per-layer state counts are the same. The
-   manifest's format line says so ([meanders-ox-mitm-2]). *)
+   manifest's format line says so ([meanders-ox-mitm-3]: the key without its first and last
+   brackets, from October 2026). *)
 
 open! Await
 module S = Parallel.Arrays.Array.Slice
@@ -994,7 +995,7 @@ type manifest =
     (* backward layers were deleted once used, so the store cannot be extended *)
   }
 
-let format_line = "format meanders-ox-mitm-2"
+let format_line = "format meanders-ox-mitm-3"
 let lines s = List.filter (fun l -> l <> "") (String.split_on_char '\n' s)
 
 let load_manifest root =

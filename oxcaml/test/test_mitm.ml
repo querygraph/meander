@@ -92,12 +92,12 @@ let test_inverse () =
 ;;
 
 (* Long words, beyond the [Word] key: on random balanced words of up to 54 brackets the
-   packed predecessors (up to 56 brackets) equal the reference, and each leads back by a bridge
+   packed predecessors (up to 58 brackets) equal the reference, and each leads back by a bridge
    step. *)
 let test_long_words () =
   Random.init 11;
   for _ = 1 to 3000 do
-    let pairs = 1 + Random.int 27 in (* predecessors add two brackets: up to 56 *)
+    let pairs = 1 + Random.int 28 in (* predecessors add two brackets: up to 58 *)
     let w = Array.make (2 * pairs) false in
     let o = ref 0
     and c = ref 0 in
@@ -116,14 +116,14 @@ let test_long_words () =
     List.iter
       (fun t ->
         (* a forward step may open a pair: only words with room for two more brackets *)
-        if Word.top_bit (t land Back.bits_mask) + 2 <= Back.max_len
+        if Back.length t + 2 <= Back.max_len
         then (
           let l = ref [] in
           Back.successors t (fun u -> l := u :: !l);
           if not (List.mem k !l) then fail "long word %#x: %#x does not lead back" k t))
       got
   done;
-  print_endline "long words: 3000 random states up to 54 brackets ok"
+  print_endline "long words: 3000 random states up to 56 brackets ok"
 ;;
 
 let test_mitm (par @ local) =
