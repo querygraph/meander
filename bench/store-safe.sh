@@ -12,8 +12,10 @@
 #     system keeps headroom;
 #   - a free-disk floor (--min-free-gb, default 100);
 #   - a watchdog that times a 1 MB write + fsync on the store's volume every 30 s, and asks
-#     the run to pause (the PAUSE file; exit code 3 at the next layer boundary) if one takes
-#     longer than 20 s or fails. Re-run the same command to resume.
+#     the run to pause (the PAUSE file; exit code 3 at the next layer boundary) if two probes
+#     in a row take longer than 20 s, or one takes longer than 60 s or fails. (A single 26 s
+#     probe is a deep write queue under a fast writer, as with OxCaml at horizon 58; a stalled
+#     volume fails every probe.) Re-run the same command to resume.
 #   - a memory guard on the kernel's pressure level (kern.memorystatus_vm_pressure_level:
 #     1 normal, 2 warn, 4 critical). At warn it asks the run to pause; if pressure turns
 #     critical, or stays at warn for 10 minutes, it stops the run (a restart redoes only the
@@ -39,7 +41,7 @@ probe() { # seconds for a 1 MB write + fsync in the store directory, or 999 on f
 }
 
 watchdog() {
-  local s lvl warn=0
+  local s lvl warn=0 slow=0
   while kill -0 "$1" 2>/dev/null; do
     sleep 30
     lvl=$(sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null || echo 1)
@@ -58,8 +60,13 @@ watchdog() {
     fi
     s=$(probe)
     if awk -v s="$s" 'BEGIN { exit !(s > 20) }'; then
-      echo "$(date '+%F %T') slow volume: probe took $s s" >> "$log"
-      touch "$dir/PAUSE" && echo "$(date '+%F %T') asked the run to pause" >> "$log"
+      slow=$((slow + 1))
+      echo "$(date '+%F %T') slow volume: probe took $s s ($slow in a row)" >> "$log"
+      if (( slow >= 2 )) || awk -v s="$s" 'BEGIN { exit !(s > 60) }'; then
+        touch "$dir/PAUSE" && echo "$(date '+%F %T') asked the run to pause" >> "$log"
+      fi
+    else
+      slow=0
     fi
   done
 }
