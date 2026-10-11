@@ -604,6 +604,41 @@ In memory, the same algorithm computes every value up to $n = 48$ on the worksta
 (Rust) and 100\,s (OxCaml). Table~\ref{tab:fast} gives the transfer matrix 80\,s for $n = 46$
 alone. The forward layers serve every $n$ at once.
 
+The two implementations raced again on this algorithm (Table~\ref{tab:mitm}).
+\begin{itemize}
+  \item \emph{OxCaml first.} OxCaml's store was at first 2.3 times faster at $B = 52$. Rust
+    spent more CPU time in the operating system than in its own code, for three reasons:
+    \begin{itemize}
+      \item a comparison sort of every spilled table;
+      \item a full table emptied while its lock was held;
+      \item fresh large buffers for every spill, sort and read, each a new memory mapping
+        that is faulted in again.
+    \end{itemize}
+  \item \emph{Why OxCaml had the better design.} OxCaml, written second and profiled on
+    purpose, used a radix sort and per-worker buffers from the start.
+  \item \emph{Rust with the same design.} With those choices ported, together with
+    pre-sized tables and parallel dot products in memory, Rust is 8--17\% faster than OxCaml
+    and uses slightly less memory.
+\end{itemize}
+This repeats the conclusion for the transfer matrix: with the same design the two languages
+are close, and the lead goes to whichever program had the more careful second look.
+
+\begin{table}[t]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+ & Rust, first & Rust, ported & OxCaml \\
+\midrule
+store, $B = 52$ & 2953\,s & 1055\,s & 1272\,s \\
+in memory, all $n \le 46$ & 72\,s & 40\,s & 44\,s \\
+in memory, all $n \le 48$ & & 92\,s & 100\,s \\
+\bottomrule
+\end{tabular}
+\caption{Meet in the middle on 32 threads of the workstation, before and after porting
+OxCaml's sort, buffer reuse and table handling to Rust. Kernel CPU time for the store:
+24{,}581\,s (Rust, first), 1{,}934\,s (Rust, ported), 2{,}135\,s (OxCaml).}\label{tab:mitm}
+\end{table}
+
 \section{Discussion}
 
 \subsection{What the proofs say about the algorithms}

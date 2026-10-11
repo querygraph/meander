@@ -82,4 +82,20 @@ than of how much effort each got. With OxCaml's fixes ported to Rust, on Morroba
 
 With the same design, Rust leads by 8 to 17 percent. The languages are close; the difference
 was which program got the careful second look. The blog post (`docs/blog/rust-vs-oxcaml/`)
-tells the whole race.
+tells the whole race, and Section 6.2 of the paper (version 1.3.0) records it with
+Table 5.
+
+## Two programs, one answer
+
+Having two implementations paid off as a check, not only as a race.
+
+- **A 63-bit key.** OxCaml's state key first held 57 brackets, so it stopped at n = 56 while
+  Rust reached 58. Every word in these layers is balanced, so its first and last brackets are
+  always "(" and ")". Dropping them freed the bit OxCaml lacked, and `make` now rejects any
+  word that breaks the rule.
+- **Four-way confirmation.** OxCaml then built its store straight to horizon 58 in 8 hours.
+  Its 59 values equal Rust's. So each new term, A(56), A(57) and A(58), is confirmed by two
+  splits in each of two separately written programs with different state encodings.
+- **The same bug classes in both.** OxCaml's signed-key bug and Rust's store-layout and
+  allocation problems were each found only by running at full scale on the target machine.
+  Neither language's type system caught them.
