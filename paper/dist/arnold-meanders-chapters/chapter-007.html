@@ -605,5 +605,65 @@ transfer matrix 80 s for
 alone. The forward layers serve every
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>
 at once.</p>
+<p>The two implementations raced again on this algorithm (Table 5).</p>
+<ul>
+<li><p><em>OxCaml first.</em> OxCaml’s store was at first 2.3 times
+faster at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mo>=</mo><mn>52</mn></mrow><annotation encoding="application/x-tex">B = 52</annotation></semantics></math>.
+Rust spent more CPU time in the operating system than in its own code,
+for three reasons:</p>
+<ul>
+<li><p>a comparison sort of every spilled table;</p></li>
+<li><p>a full table emptied while its lock was held;</p></li>
+<li><p>fresh large buffers for every spill, sort and read, each a new
+memory mapping that is faulted in again.</p></li>
+</ul></li>
+<li><p><em>Why OxCaml had the better design.</em> OxCaml, written second
+and profiled on purpose, used a radix sort and per-worker buffers from
+the start.</p></li>
+<li><p><em>Rust with the same design.</em> With those choices ported,
+together with pre-sized tables and parallel dot products in memory, Rust
+is 8–17% faster than OxCaml and uses slightly less memory.</p></li>
+</ul>
+<p>This repeats the conclusion for the transfer matrix: with the same
+design the two languages are close, and the lead goes to whichever
+program had the more careful second look.</p>
+<table id="tab:mitm">
+<caption>Table 5. Meet in the middle on 32 threads of the workstation,
+before and after porting OxCaml’s sort, buffer reuse and table handling
+to Rust. Kernel CPU time for the store: 24,581 s (Rust, first), 1,934 s
+(Rust, ported), 2,135 s (OxCaml).</caption>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">Rust, first</th>
+<th style="text-align: right;">Rust, ported</th>
+<th style="text-align: right;">OxCaml</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>store,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mo>=</mo><mn>52</mn></mrow><annotation encoding="application/x-tex">B = 52</annotation></semantics></math></td>
+<td style="text-align: right;">2953 s</td>
+<td style="text-align: right;">1055 s</td>
+<td style="text-align: right;">1272 s</td>
+</tr>
+<tr>
+<td>in memory, all
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>46</mn></mrow><annotation encoding="application/x-tex">n \le 46</annotation></semantics></math></td>
+<td style="text-align: right;">72 s</td>
+<td style="text-align: right;">40 s</td>
+<td style="text-align: right;">44 s</td>
+</tr>
+<tr>
+<td>in memory, all
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>48</mn></mrow><annotation encoding="application/x-tex">n \le 48</annotation></semantics></math></td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;">92 s</td>
+<td style="text-align: right;">100 s</td>
+</tr>
+</tbody>
+</table>
 </body>
 </html>
