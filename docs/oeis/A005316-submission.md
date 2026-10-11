@@ -1,8 +1,15 @@
 # OEIS A005316: extending the b-file to n = 58 (draft)
 
-Status: **draft, not submitted.** It goes in through the OEIS edit form ("edit" on
-https://oeis.org/A005316) under the submitter's OEIS account. The new b-file is
-`docs/oeis/b005316.txt` (n = 0..58).
+Status: **submitted for review on Oct 11 2026**, as draft edits #128-#130 of A005316
+(https://oeis.org/draft/A005316). The edits:
+- **#128:** links and extensions.
+- **#129:** the b-file upload. OEIS stored it as `b005316_5.txt`, 969 bytes, identical to
+  `docs/oeis/b005316.txt`, with the link "Table of n, a(n) for n = 0..58".
+- **#130:** the edit marked ready for review.
+
+The discussion note is the section below. The b-file link line follows OEIS's convention
+for an extended b-file:
+`Alexy Khrabrov, <a href="/A005316/b005316_5.txt">Table of n, a(n) for n = 0..58</a> (terms 0..55 from Andrew Howroyd, first 44 terms from Iwan Jensen)`.
 
 All three new terms were computed by two separately written programs (Rust and OxCaml, with
 different state encodings). Each program checked each term through two independent splits,
