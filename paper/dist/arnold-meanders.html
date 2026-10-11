@@ -5,7 +5,7 @@
   <meta name="generator" content="pandoc 3.10.1" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Alexy Khrabrov" />
-  <meta name="dcterms.date" content="2026-10-08" />
+  <meta name="dcterms.date" content="2026-10-11" />
   <title>Counting Arnold&#39;s Meanders with Verified Algorithms</title>
   <style>
 
@@ -178,7 +178,7 @@ vertical-align: middle;
 <h1 class="title">Counting Arnold&#39;s Meanders with Verified
 Algorithms</h1>
 <p class="author">Alexy Khrabrov</p>
-<p class="date">2026-10-08</p>
+<p class="date">2026-10-11</p>
 </header>
 <nav id="TOC" role="doc-toc">
 <ul>
@@ -233,10 +233,15 @@ in about half a minute; values up to
 are checked by the Lean kernel alone. Unverified parallel
 implementations of the same machine in Rust and OxCaml, with each state
 packed into one machine word, reproduce the published values up to
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>,
-and companion notebooks implement the algorithms in Lean, Python and
-OCaml. The development is about 5,000 lines of Lean and is available at
-<a href="https://github.com/querygraph/meander" class="uri">https://github.com/querygraph/meander</a>.</p>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>.
+A meet-in-the-middle algorithm, whose decomposition is proved in Lean,
+combines forward and backward layers kept on disk and extends the
+computation to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>58</mn></mrow><annotation encoding="application/x-tex">n = 58</annotation></semantics></math>.
+It gives three new terms of the sequence, each confirmed by two
+independent decompositions in two separately written programs. Companion
+notebooks implement the algorithms in Lean, Python and OCaml. The
+development is about 5,000 lines of Lean and is available at <a href="https://github.com/querygraph/meander" class="uri">https://github.com/querygraph/meander</a>.</p>
 <h1 class="unnumbered" id="introduction">1. Introduction</h1>
 <p>A <em>meander</em> is a non-self-intersecting curve in the plane that
 crosses a fixed straight line a prescribed number of times. In a short
@@ -309,10 +314,25 @@ reach
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>;
 teaching implementations in Python and OCaml; and a comparison of all of
 them (Section 6.1).</p></li>
+<li><p>A meet-in-the-middle algorithm, with its decomposition proved in
+Lean, implemented in both languages as an extensible store of layers on
+disk. It reaches
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>58</mn></mrow><annotation encoding="application/x-tex">n = 58</annotation></semantics></math>,
+giving the new terms
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mn>56</mn></msub><annotation encoding="application/x-tex">\mathrm{M}_{56}</annotation></semantics></math>,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mn>57</mn></msub><annotation encoding="application/x-tex">\mathrm{M}_{57}</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mn>58</mn></msub><annotation encoding="application/x-tex">\mathrm{M}_{58}</annotation></semantics></math>
+(Section 6.2).</p></li>
 </ol>
-<p>We do not claim new values of the sequence; larger values are
-known [6]. What is new is that the values we report come from programs
-proved correct for all
+<p>The published sequence ends at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>55</mn></mrow><annotation encoding="application/x-tex">n = 55</annotation></semantics></math> [11].
+Our values up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>55</mn></mrow><annotation encoding="application/x-tex">n = 55</annotation></semantics></math>
+reproduce it. The three values beyond it are new. Each is computed
+through two independent splits of the meet-in-the-middle sum, by two
+separately written programs, all four results agreeing. What is also new
+is that the smaller values come from programs proved correct for all
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>,
 and that the proofs expose the combinatorial facts that make the fast
 algorithms work.</p>
@@ -1180,6 +1200,104 @@ on the same machine.</caption>
 </tr>
 </tbody>
 </table>
+<h2 class="unnumbered" id="sec:mitm">6.2. Meet in the middle and new
+values</h2>
+<p>The transfer matrix keeps one layer at a time, and memory stops it at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>.
+Meeting in the middle trades that memory for disk and reuses work across
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>.</p>
+<ul>
+<li><p><em>Forward layers.</em> Let
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>F</mi><mi>k</mi></msub><annotation encoding="application/x-tex">F_k</annotation></semantics></math>
+be the layer of states after
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math>
+bridges from the west, with no pruning. It does not depend on
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>.</p></li>
+<li><p><em>Backward layers.</em> Let
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msubsup><mi>G</mi><mi>r</mi><mi>p</mi></msubsup><mo stretchy="false" form="prefix">(</mo><mi>s</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">G^p_r(s)</annotation></semantics></math>
+be the number of ways to finish a river from state
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>s</mi><annotation encoding="application/x-tex">s</annotation></semantics></math>
+in
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>r</mi><annotation encoding="application/x-tex">r</annotation></semantics></math>
+further bridges, with the east end on side
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>p</mi><annotation encoding="application/x-tex">p</annotation></semantics></math>
+of the road.</p></li>
+<li><p><em>The decomposition.</em> For every split
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math>,
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi mathvariant="normal">M</mi><mrow><mi>k</mi><mo>+</mo><mi>r</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>s</mi></munder><msub><mi>F</mi><mi>k</mi></msub><mo stretchy="false" form="prefix">(</mo><mi>s</mi><mo stretchy="false" form="postfix">)</mo><mspace width="0.167em"></mspace><msubsup><mi>G</mi><mi>r</mi><mrow><mo stretchy="false" form="prefix">(</mo><mi>k</mi><mo>+</mo><mi>r</mi><mo stretchy="false" form="postfix">)</mo><mrow><mspace width="0.222em"></mspace><mrow><mi mathvariant="normal">mod</mi><mo>⁡</mo></mrow><mspace width="0.222em"></mspace><mn>2</mn></mrow></mrow></msubsup><mo stretchy="false" form="prefix">(</mo><mi>s</mi><mo stretchy="false" form="postfix">)</mo><mi>.</mi></mrow><annotation encoding="application/x-tex">\mathrm{M}_{k+r} = \sum_s F_k(s)\, G^{(k+r) \bmod 2}_r(s).</annotation></semantics></math>
+The Lean theorem <code>meet</code> (<code>Arnold/TM/Middle.lean</code>)
+proves this for the verified machine, through
+<code>cntFrom_eq_finish</code>, which identifies the backward counts
+with the forward machine run from
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>s</mi><annotation encoding="application/x-tex">s</annotation></semantics></math>.
+The kernel checks the identity numerically for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>10</mn></mrow><annotation encoding="application/x-tex">n \le 10</annotation></semantics></math>
+(<code>openMeanderCount_values_meet</code>).</p></li>
+</ul>
+<p>The programs build the backward layers by inverting the bridge steps,
+which is not verified. They keep a state in
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>G</mi><mi>r</mi></msub><annotation encoding="application/x-tex">G_r</annotation></semantics></math>
+only if its <em>depth</em>, the fewest bridges that build it from the
+west, is at most
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mo>−</mo><mi>r</mi></mrow><annotation encoding="application/x-tex">B - r</annotation></semantics></math>
+for the horizon
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>B</mi><annotation encoding="application/x-tex">B</annotation></semantics></math>.
+Deeper states cannot meet any forward layer within the horizon, so the
+pruning is exact. Every state of these layers is a bracket word without
+the marker for the east end, so both programs pack it into one machine
+word. OxCaml also drops the first and last brackets, which are always
+“(” and “)”, so that 58 brackets fit in its 63-bit integers.</p>
+<p>Both programs keep every layer on disk as a few large files of
+sorted, delta-encoded records. A layer that does not fit in memory
+spills sorted runs and merges them. Raising the horizon from
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>B</mi><annotation encoding="application/x-tex">B</annotation></semantics></math>
+to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>B</mi><mo>′</mo></msup><annotation encoding="application/x-tex">B&#39;</annotation></semantics></math>
+adds one segment to each backward layer, holding the states that
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>B</mi><mo>′</mo></msup><annotation encoding="application/x-tex">B&#39;</annotation></semantics></math>
+newly admits, and recomputes nothing. Each
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mi>n</mi></msub><annotation encoding="application/x-tex">\mathrm{M}_n</annotation></semantics></math>
+is computed with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi><mo>=</mo><mo stretchy="false" form="prefix">⌈</mo><mi>n</mi><mi>/</mi><mn>2</mn><mo stretchy="false" form="postfix">⌉</mo></mrow><annotation encoding="application/x-tex">k = \lceil n/2 \rceil</annotation></semantics></math>
+and checked with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">k - 1</annotation></semantics></math>,
+which uses different forward and backward layers. Counts are exact:
+128-bit integers in Rust, and two 62-bit limbs in OxCaml.</p>
+<p>On the workstation of Table 3:</p>
+<ul>
+<li><p>The Rust store reached
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mo>=</mo><mn>58</mn></mrow><annotation encoding="application/x-tex">B = 58</annotation></semantics></math>
+by stepwise extension from
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mo>=</mo><mn>48</mn></mrow><annotation encoding="application/x-tex">B = 48</annotation></semantics></math>.</p></li>
+<li><p>The OxCaml store was built directly at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mo>=</mo><mn>58</mn></mrow><annotation encoding="application/x-tex">B = 58</annotation></semantics></math>
+in 8.0 hours. Its largest backward layer holds
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>3.6</mn><mo>×</mo><msup><mn>10</mn><mn>10</mn></msup></mrow><annotation encoding="application/x-tex">3.6 \times 10^{10}</annotation></semantics></math>
+states, and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>F</mi><mn>29</mn></msub><annotation encoding="application/x-tex">F_{29}</annotation></semantics></math>
+holds
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2.6</mn><mo>×</mo><msup><mn>10</mn><mn>9</mn></msup></mrow><annotation encoding="application/x-tex">2.6 \times 10^9</annotation></semantics></math>.</p></li>
+<li><p>The stores take 1.3 TB each.</p></li>
+</ul>
+<p>Every value
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>58</mn></mrow><annotation encoding="application/x-tex">n \le 58</annotation></semantics></math>
+agrees between its two splits and between the two programs, and the
+values for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>≤</mo><mn>55</mn></mrow><annotation encoding="application/x-tex">n \le 55</annotation></semantics></math>
+agree with the OEIS b-file. The new values are
+<math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mtable><mtr><mtd columnalign="right" style="text-align: right; padding-right: 0"><msub><mi mathvariant="normal">M</mi><mn>56</mn></msub></mtd><mtd columnalign="left" style="text-align: left; padding-left: 0"><mo>=</mo><mn>28</mn><mo>,</mo><mn>235</mn><mo>,</mo><mn>899</mn><mo>,</mo><mn>288</mn><mo>,</mo><mn>344</mn><mo>,</mo><mn>793</mn><mo>,</mo><mn>178</mn><mo>,</mo><mn>333</mn><mo>,</mo><mn>732</mn><mo>,</mo></mtd></mtr><mtr><mtd columnalign="right" style="text-align: right; padding-right: 0"><msub><mi mathvariant="normal">M</mi><mn>57</mn></msub></mtd><mtd columnalign="left" style="text-align: left; padding-left: 0"><mo>=</mo><mn>116</mn><mo>,</mo><mn>936</mn><mo>,</mo><mn>079</mn><mo>,</mo><mn>373</mn><mo>,</mo><mn>841</mn><mo>,</mo><mn>873</mn><mo>,</mo><mn>422</mn><mo>,</mo><mn>508</mn><mo>,</mo><mn>566</mn><mo>,</mo></mtd></mtr><mtr><mtd columnalign="right" style="text-align: right; padding-right: 0"><msub><mi mathvariant="normal">M</mi><mn>58</mn></msub></mtd><mtd columnalign="left" style="text-align: left; padding-left: 0"><mo>=</mo><mn>308</mn><mo>,</mo><mn>496</mn><mo>,</mo><mn>356</mn><mo>,</mo><mn>015</mn><mo>,</mo><mn>441</mn><mo>,</mo><mn>090</mn><mo>,</mo><mn>010</mn><mo>,</mo><mn>351</mn><mo>,</mo><mn>094</mn><mi>.</mi></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{aligned}
+    \mathrm{M}_{56} &amp;= 28{,}235{,}899{,}288{,}344{,}793{,}178{,}333{,}732,\\
+    \mathrm{M}_{57} &amp;= 116{,}936{,}079{,}373{,}841{,}873{,}422{,}508{,}566,\\
+    \mathrm{M}_{58} &amp;= 308{,}496{,}356{,}015{,}441{,}090{,}010{,}351{,}094.
+  \end{aligned}</annotation></semantics></math> In memory, the same
+algorithm computes every value up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>48</mn></mrow><annotation encoding="application/x-tex">n = 48</annotation></semantics></math>
+on the workstation in 92 s (Rust) and 100 s (OxCaml). Table 3 gives the
+transfer matrix 80 s for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>46</mn></mrow><annotation encoding="application/x-tex">n = 46</annotation></semantics></math>
+alone. The forward layers serve every
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>
+at once.</p>
 <h1 class="unnumbered" id="discussion">7. Discussion</h1>
 <h2 class="unnumbered" id="what-the-proofs-say-about-the-algorithms">7.1. What the proofs say
 about the algorithms</h2>
@@ -1254,9 +1372,15 @@ and
 removes most of it. Table 5 uses
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mi>n</mi></msub><mo>=</mo><msub><mi mathvariant="normal">M</mi><mrow><mn>2</mn><mi>n</mi><mo>−</mo><mn>1</mn></mrow></msub></mrow><annotation encoding="application/x-tex">\overline{\mathrm{M}}_n = \mathrm{M}_{2n-1}</annotation></semantics></math>
 (Theorem 3.2) with open counts up to
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>49</mn><annotation encoding="application/x-tex">49</annotation></semantics></math>
-crossings, computed by the parallel programs of Section 6.1. The
-extrapolated values increase steadily towards
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>57</mn><annotation encoding="application/x-tex">57</annotation></semantics></math>
+crossings, computed by the programs of Sections 6.1 and 6.2; the rows
+for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>26</mn></mrow><annotation encoding="application/x-tex">n = 26</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>28</mn><annotation encoding="application/x-tex">28</annotation></semantics></math>
+use the new value
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mover><mi mathvariant="normal">M</mi><mo accent="true">¯</mo></mover><mn>29</mn></msub><mo>=</mo><msub><mi mathvariant="normal">M</mi><mn>57</mn></msub></mrow><annotation encoding="application/x-tex">\overline{\mathrm{M}}_{29} = \mathrm{M}_{57}</annotation></semantics></math>.
+The extrapolated values increase steadily towards
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>3.4201</mn><annotation encoding="application/x-tex">3.4201</annotation></semantics></math>.
 This is numerical evidence for the conjectured exponent, not a proof,
 and it assumes the estimate of
@@ -1324,6 +1448,18 @@ from exact counts of closed meanders, with the growth constant fixed at
 <td style="text-align: right;">3.4180</td>
 </tr>
 <tr>
+<td style="text-align: right;">26</td>
+<td style="text-align: right;">10.8078</td>
+<td style="text-align: right;">3.3467</td>
+<td style="text-align: right;">3.4185</td>
+</tr>
+<tr>
+<td style="text-align: right;">28</td>
+<td style="text-align: right;">10.9021</td>
+<td style="text-align: right;">3.3518</td>
+<td style="text-align: right;">3.4189</td>
+</tr>
+<tr>
 <td colspan="3" style="text-align: right;">conjecture [5]</td>
 <td style="text-align: right;">3.4201</td>
 </tr>
@@ -1337,14 +1473,19 @@ beyond
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>32</mn></mrow><annotation encoding="application/x-tex">n=32</annotation></semantics></math>.
 The unverified Rust and OxCaml programs of Section 6.1 pack each state
 into one machine word and reach
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>.
-Verifying such an encoding is a natural next step, and the generic
-counting theorem already accepts any merge procedure that preserves
-weighted sums. A second direction is to formalize the rigorous
-growth-rate bounds of Albert and Paterson [1], which would make our
-Catalan bound one instance of a more general framework. Finally, the
-question that motivated the work, a closed formula for the meander
-numbers, remains open; the conjectured critical exponent
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>,
+and their meet-in-the-middle stores reach
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>58</mn></mrow><annotation encoding="application/x-tex">n = 58</annotation></semantics></math>.
+Verifying such an encoding is a natural next step, as is verifying the
+inverse bridge steps and the depth pruning on top of the proved
+decomposition; the generic counting theorem already accepts any merge
+procedure that preserves weighted sums. The stores could go beyond
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>58</mn></mrow><annotation encoding="application/x-tex">n = 58</annotation></semantics></math>
+with a wider state key and more disk. A second direction is to formalize
+the rigorous growth-rate bounds of Albert and Paterson [1], which would
+make our Catalan bound one instance of a more general framework.
+Finally, the question that motivated the work, a closed formula for the
+meander numbers, remains open; the conjectured critical exponent
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mo>=</mo><mo stretchy="false" form="prefix">(</mo><mn>29</mn><mo>+</mo><msqrt><mn>145</mn></msqrt><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mn>12</mn></mrow><annotation encoding="application/x-tex">\alpha = (29+\sqrt{145})/12</annotation></semantics></math>
 suggests that if a formula exists it is not of an elementary kind.</p>
 <h2 class="unnumbered" id="acknowledgements">Acknowledgements</h2>

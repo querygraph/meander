@@ -5,7 +5,7 @@
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Alexy Khrabrov" />
-  <meta name="dcterms.date" content="2026-10-08" />
+  <meta name="dcterms.date" content="2026-10-11" />
   <title>1. Introduction</title>
   <style>
     div.sitenav { display: flex; flex-direction: row; flex-wrap: wrap; }
@@ -270,10 +270,25 @@ reach
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>50</mn></mrow><annotation encoding="application/x-tex">n = 50</annotation></semantics></math>;
 teaching implementations in Python and OCaml; and a comparison of all of
 them (Section 6.1).</p></li>
+<li><p>A meet-in-the-middle algorithm, with its decomposition proved in
+Lean, implemented in both languages as an extensible store of layers on
+disk. It reaches
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>58</mn></mrow><annotation encoding="application/x-tex">n = 58</annotation></semantics></math>,
+giving the new terms
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mn>56</mn></msub><annotation encoding="application/x-tex">\mathrm{M}_{56}</annotation></semantics></math>,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mn>57</mn></msub><annotation encoding="application/x-tex">\mathrm{M}_{57}</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">M</mi><mn>58</mn></msub><annotation encoding="application/x-tex">\mathrm{M}_{58}</annotation></semantics></math>
+(Section 6.2).</p></li>
 </ol>
-<p>We do not claim new values of the sequence; larger values are
-known [6]. What is new is that the values we report come from programs
-proved correct for all
+<p>The published sequence ends at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>55</mn></mrow><annotation encoding="application/x-tex">n = 55</annotation></semantics></math> [11].
+Our values up to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>55</mn></mrow><annotation encoding="application/x-tex">n = 55</annotation></semantics></math>
+reproduce it. The three values beyond it are new. Each is computed
+through two independent splits of the meet-in-the-middle sum, by two
+separately written programs, all four results agreeing. What is also new
+is that the smaller values come from programs proved correct for all
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math>,
 and that the proofs expose the combinatorial facts that make the fast
 algorithms work.</p>
