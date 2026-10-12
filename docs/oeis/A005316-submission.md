@@ -6,6 +6,9 @@ Status: **submitted for review on Oct 11 2026**, as draft edits #128-#130 of A00
 - **#129:** the b-file upload. OEIS stored it as `b005316_5.txt`, 969 bytes, identical to
   `docs/oeis/b005316.txt`, with the link "Table of n, a(n) for n = 0..58".
 - **#130:** the edit marked ready for review.
+- **#131-#132:** on Oct 12 2026 editor Michel Marcus removed the EXTENSIONS line ("we do not
+  add an extension when a bfile is extended") and proposed the draft for review again. The
+  credit for an extended b-file goes in its link line only.
 
 The discussion note is the section below. The b-file link line follows OEIS's convention
 for an extended b-file:
@@ -43,9 +46,8 @@ values.
 
     Alexy Khrabrov, Lean 4, Rust and OxCaml programs (https://github.com/querygraph/meander)
 
-**EXTENSIONS** (new):
-
-    a(56)-a(58) added to b-file by Alexy Khrabrov, Oct 10 2026
+**EXTENSIONS:** none. OEIS does not add an extension when a b-file is extended; the link
+line carries the credit.
 
 ## Discussion (for the editors)
 
